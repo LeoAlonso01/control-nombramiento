@@ -1,6 +1,17 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
+import { getVerifiedSessionContext } from "@/lib/auth/server";
+import { runAfterSessionVerification } from "@/lib/auth/extraction-gate";
+import {
+  clearAbsoluteSessionCookie,
+  serializeAbsoluteSessionCookie,
+} from "@/lib/auth/absolute-session";
+import {
+  clearPocketBaseAuthCookie,
+  noStoreJson,
+} from "@/lib/auth/http";
+import { exportPocketBaseAuthCookie } from "@/lib/pocketbase/server";
 
 /* export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,7 +76,17 @@ function jsonError(message: string, status: number) {
 }
 
 export async function POST(request: Request) {
-  try {
+  const guarded = await runAfterSessionVerification(
+    () => getVerifiedSessionContext(request.headers.get("cookie")),
+    () => {
+      const response = noStoreJson({ error: "Se requiere una sesión activa." }, 401);
+      response.headers.append("Set-Cookie", clearPocketBaseAuthCookie());
+      response.headers.append("Set-Cookie", clearAbsoluteSessionCookie());
+      return response;
+    },
+    () => noStoreJson({ error: "No fue posible verificar la sesión." }, 503),
+    async () => {
+      try {
     const apiKey = process.env.GEMINI_API_KEY;
     const model = process.env.GEMINI_MODEL;
 
@@ -234,9 +255,27 @@ export async function POST(request: Request) {
       data: validatedData,
     });
 
-  } catch (error) {
-    // No devolver detalles internos ni credenciales al cliente.
-    console.error("Error al analizar nombramiento con Gemini:", error instanceof Error ? error.message : "Error desconocido");
+      } catch {
+    // No devolver ni registrar detalles de la solicitud o del proveedor.
+    console.error("Error de extracción de nombramiento con Gemini.");
     return jsonError("No fue posible analizar el documento. Inténtalo de nuevo.", 502);
+      }
+    },
+  );
+
+  if (guarded.kind === "authenticated") {
+    guarded.response.headers.append(
+      "Set-Cookie",
+      exportPocketBaseAuthCookie(
+        guarded.context.pocketBase,
+        guarded.context.deadline.expiresAt,
+      ),
+    );
+    guarded.response.headers.append(
+      "Set-Cookie",
+      serializeAbsoluteSessionCookie(guarded.context.deadline),
+    );
   }
+
+  return guarded.response;
 }
