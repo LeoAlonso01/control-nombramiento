@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CapturaNombramiento } from "@/app/captura-nombramiento";
 
 type Status = "Vigente" | "Pendiente" | "Próximo a vencer";
 type Appointment = {
@@ -115,6 +116,7 @@ function MetricCard({ metric }: { metric: (typeof metrics)[number] }) {
 
 export default function Home() {
   const [query, setQuery] = useState("");
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState("");
   const [currentDateIso, setCurrentDateIso] = useState("");
   useEffect(() => {
@@ -133,6 +135,7 @@ export default function Home() {
         .some((value) => value.toLocaleLowerCase("es-MX").includes(normalizedQuery)),
     );
   }, [query]);
+  if (captureOpen) return <CapturaNombramiento onClose={() => setCaptureOpen(false)} />;
   return (
     <div id="inicio" className="flex min-h-screen flex-col bg-[#f7f8fa] text-slate-900 lg:flex-row">
       <Sidebar />
@@ -163,7 +166,7 @@ export default function Home() {
                   <CardTitle id="recent-title" className="text-base font-semibold text-slate-900">Nombramientos recientes</CardTitle>
                   <p className="mt-1 text-sm text-slate-500">Consulta los últimos registros y su estado actual.</p>
                 </div>
-                <Button type="button" className="h-10 w-full rounded-md bg-[#a82732] px-4 text-sm text-white hover:bg-[#8e202a] focus-visible:ring-2 focus-visible:ring-red-800 focus-visible:ring-offset-2 sm:w-auto">
+                <Button type="button" onClick={() => setCaptureOpen(true)} className="h-10 w-full rounded-md bg-[#a82732] px-4 text-sm text-white hover:bg-[#8e202a] focus-visible:ring-2 focus-visible:ring-red-800 focus-visible:ring-offset-2 sm:w-auto">
                   <Plus aria-hidden="true" className="size-4" /> Registrar nombramiento
                 </Button>
               </CardHeader>
