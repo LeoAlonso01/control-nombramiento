@@ -69,18 +69,24 @@ export async function POST(request: Request) {
     return noStoreJson({ error: "La solicitud no es válida." }, 400);
   }
 
+  let diagnosticStage = "session_configuration";
+
   try {
     assertSessionSigningConfigured();
+    diagnosticStage = "pocketbase_configuration";
     const pb = createPocketBaseServer();
+    diagnosticStage = "pocketbase_authentication";
     const { record } = await pb
       .collection("users")
       .authWithPassword<UserAuthRecord>(identity, password);
 
     if (record.collectionName !== "users" || record.activo !== true) {
       pb.authStore.clear();
+      console.info("[auth-login-diagnostic] authenticated_account_not_eligible");
       return noStoreJson({ error: LOGIN_FAILED }, 401);
     }
 
+    diagnosticStage = "session_signing";
     const deadline = createAbsoluteSessionDeadline(record.id);
     pb.authStore.save(pb.authStore.token, {
       id: record.id,
@@ -89,6 +95,7 @@ export async function POST(request: Request) {
       activo: record.activo,
     });
 
+    diagnosticStage = "cookie_serialization";
     const response = noStoreJson({ success: true });
     response.headers.append(
       "Set-Cookie",
@@ -99,9 +106,11 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ClientResponseError) {
       if ([400, 401, 403].includes(error.status)) {
+        console.info("[auth-login-diagnostic] pocketbase_auth_rejected", { status: error.status });
         return noStoreJson({ error: LOGIN_FAILED }, 401);
       }
 
+      console.warn("[auth-login-diagnostic] pocketbase_unavailable", { status: error.status });
       return noStoreJson(
         { error: "El servicio de autenticación no está disponible." },
         503,
@@ -109,6 +118,7 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof PocketBaseConfigurationError) {
+      console.error("[auth-login-diagnostic] pocketbase_configuration_invalid");
       return noStoreJson(
         { error: "La autenticación no está configurada." },
         500,
@@ -116,12 +126,14 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof SessionSigningConfigurationError) {
+      console.error("[auth-login-diagnostic] session_signing_configuration_invalid");
       return noStoreJson(
         { error: "La autenticación no está configurada." },
         500,
       );
     }
 
+    console.error("[auth-login-diagnostic] unexpected_failure", { stage: diagnosticStage });
     return noStoreJson(
       { error: "El servicio de autenticación no está disponible." },
       503,

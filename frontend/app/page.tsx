@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth/server";
 import { ABSOLUTE_SESSION_COOKIE_NAME } from "@/lib/auth/absolute-session";
 import { POCKETBASE_AUTH_COOKIE_NAME } from "@/lib/pocketbase/server";
@@ -19,6 +20,8 @@ function SessionUnavailable() {
 }
 
 async function ProtectedDashboard() {
+  await connection();
+
   const cookieStore = await cookies();
   const authCookies = [
     POCKETBASE_AUTH_COOKIE_NAME,

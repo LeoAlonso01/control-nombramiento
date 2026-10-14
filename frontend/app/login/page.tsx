@@ -7,11 +7,12 @@ export default function LoginPage() {
       <div className="w-full max-w-[440px]">
         <header className="mb-6 flex items-center justify-center gap-3 sm:mb-8">
           <div aria-hidden="true" className="flex size-11 items-center justify-center rounded-lg bg-[#a82732] text-sm font-bold tracking-wide text-white shadow-sm">
-            CN
+            CND
           </div>
           <div>
             <p className="text-sm font-semibold leading-tight text-slate-900">Control de</p>
             <p className="text-sm font-semibold leading-tight text-slate-900">Nombramientos</p>
+            <p className="text-sm font-semibold leading-tight text-slate-900">Y Declaraciones</p>
           </div>
         </header>
 
