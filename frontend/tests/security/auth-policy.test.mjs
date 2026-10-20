@@ -11,6 +11,14 @@ import {
   classifyRefreshFailure,
   classifySessionState,
 } from "../../lib/auth/session-policy.ts";
+import {
+  APP_ROLES,
+  AUTHORIZATION_ACTIONS,
+  AUTHORIZATION_POLICY,
+  AUTHORIZATION_RESOURCES,
+  hasPermission,
+  resolveAppRole,
+} from "../../lib/auth/authorization.ts";
 import { parsePocketBaseUrl } from "../../lib/pocketbase/url.ts";
 import { resolveDashboardAccess } from "../../lib/auth/dashboard-access.ts";
 import {
@@ -28,6 +36,67 @@ import {
 } from "../../lib/auth/logout-contract.ts";
 
 process.env.SESSION_SIGNING_SECRET = "unit-test-secret-with-at-least-32-bytes";
+
+test("authorization matrix defines every role, resource, and action combination", () => {
+  assert.deepEqual(Object.keys(AUTHORIZATION_POLICY).sort(), [...APP_ROLES].sort());
+
+  for (const role of APP_ROLES) {
+    assert.deepEqual(
+      Object.keys(AUTHORIZATION_POLICY[role]).sort(),
+      [...AUTHORIZATION_RESOURCES].sort(),
+    );
+
+    for (const resource of AUTHORIZATION_RESOURCES) {
+      for (const action of AUTHORIZATION_ACTIONS) {
+        assert.equal(
+          hasPermission(role, resource, action),
+          AUTHORIZATION_POLICY[role][resource].includes(action),
+          `${role} ${action} ${resource}`,
+        );
+      }
+    }
+  }
+});
+
+test("authorization policy grants only the confirmed role permissions", () => {
+  for (const resource of AUTHORIZATION_RESOURCES) {
+    for (const action of AUTHORIZATION_ACTIONS) {
+      assert.equal(
+        hasPermission("admin", resource, action),
+        resource !== "permissions" || action === "manage",
+        `admin ${action} ${resource}`,
+      );
+
+      assert.equal(
+        hasPermission("capturista", resource, action),
+        ["nombramientos", "declaraciones"].includes(resource) &&
+          ["read", "create", "update"].includes(action),
+        `capturista ${action} ${resource}`,
+      );
+
+      assert.equal(
+        hasPermission("auditor", resource, action),
+        ["nombramientos", "declaraciones"].includes(resource) &&
+          action === "read",
+        `auditor ${action} ${resource}`,
+      );
+    }
+  }
+});
+
+test("unknown roles, resources, and actions are denied by default", () => {
+  assert.equal(hasPermission("unknown", "nombramientos", "read"), false);
+  assert.equal(hasPermission("admin", "unknown", "read"), false);
+  assert.equal(hasPermission("admin", "nombramientos", "unknown"), false);
+});
+
+test("configured administrator ID takes precedence over any assigned role", () => {
+  assert.equal(resolveAppRole("admin-id", " admin-id ", "auditor"), "admin");
+  assert.equal(resolveAppRole("admin-id", "admin-id", null), "admin");
+  assert.equal(resolveAppRole("other-id", "admin-id", "capturista"), "capturista");
+  assert.equal(resolveAppRole("other-id", "admin-id"), null);
+  assert.equal(resolveAppRole("other-id", undefined, "auditor"), "auditor");
+});
 
 test("login creates a signed eight-hour absolute deadline", () => {
   const now = 1_800_000_000_000;
