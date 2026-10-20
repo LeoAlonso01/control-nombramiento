@@ -11,9 +11,11 @@ import {
   classifyRefreshFailure,
   classifySessionState,
 } from "@/lib/auth/session-policy";
+import { resolveAppRole, type AppRole } from "@/lib/auth/authorization";
 
 type PocketBaseUserRecord = RecordModel & {
   activo?: unknown;
+  rol?: unknown;
 };
 
 export type AuthenticatedSession = {
@@ -21,6 +23,7 @@ export type AuthenticatedSession = {
   user: {
     id: string;
     isAdmin: boolean;
+    role: AppRole | null;
   };
 };
 
@@ -102,6 +105,11 @@ export async function getVerifiedSessionContext(
     };
   }
 
+  // Resolve authorization only from the record returned by authenticated authRefresh,
+  // after identity and active status have been verified above.
+  const configuredAdminId = process.env.APP_ADMIN_USER_ID;
+  const role = resolveAppRole(record.id, configuredAdminId, record.rol);
+
   // Keep only fields required to identify the auth record in the SDK cookie.
   pb.authStore.save(pb.authStore.token, {
     id: record.id,
@@ -110,13 +118,12 @@ export async function getVerifiedSessionContext(
     activo: record.activo,
   });
 
-  const configuredAdminId = process.env.APP_ADMIN_USER_ID?.trim();
-
   const session: AuthenticatedSession = {
     authenticated: true,
     user: {
       id: record.id,
-      isAdmin: Boolean(configuredAdminId && record.id === configuredAdminId),
+      role,
+      isAdmin: role === "admin",
     },
   };
 

@@ -98,6 +98,16 @@ test("configured administrator ID takes precedence over any assigned role", () =
   assert.equal(resolveAppRole("other-id", undefined, "auditor"), "auditor");
 });
 
+test("role resolution accepts only the exact supported runtime strings", () => {
+  for (const role of APP_ROLES) {
+    assert.equal(resolveAppRole("other-id", undefined, role), role);
+  }
+
+  for (const role of [undefined, null, "", "Admin", "unknown", [], {}, 1, true]) {
+    assert.equal(resolveAppRole("other-id", undefined, role), null);
+  }
+});
+
 test("login creates a signed eight-hour absolute deadline", () => {
   const now = 1_800_000_000_000;
   const deadline = createAbsoluteSessionDeadline("test-user", now);
@@ -134,10 +144,17 @@ test("deadline expires at eight hours", () => {
 });
 
 test("a user who becomes inactive is rejected", () => {
+  const state = classifySessionState(
+    true,
+    { id: "test-user", collectionName: "users", activo: false },
+    "test-user",
+  );
   assert.equal(
-    classifySessionState(true, { id: "test-user", collectionName: "users", activo: false }, "test-user"),
+    state,
     "inactive",
   );
+  // Role resolution must be downstream of this gate in getVerifiedSessionContext.
+  assert.notEqual(state, "authenticated");
 });
 
 test("an invalid or expired token is rejected", () => {

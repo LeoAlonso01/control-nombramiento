@@ -67,14 +67,17 @@ export function hasPermission(
 
 /**
  * Resolves the configured administrator from a server-verified user ID.
- * Any future assignedRole argument must come from a trusted server-side source.
+ * `assignedRole` must come from a trusted server-side source. Runtime values are
+ * validated because TypeScript types do not validate PocketBase responses.
  */
 export function resolveAppRole(
   verifiedUserId: string,
   configuredAdminId: string | undefined,
-  assignedRole?: AppRole | null,
+  assignedRole?: unknown,
 ): AppRole | null {
   const adminId = configuredAdminId?.trim();
   if (adminId && verifiedUserId === adminId) return "admin";
-  return assignedRole ?? null;
+  return typeof assignedRole === "string" && APP_ROLES.includes(assignedRole as AppRole)
+    ? (assignedRole as AppRole)
+    : null;
 }
