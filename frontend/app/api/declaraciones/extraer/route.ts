@@ -1,7 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { getVerifiedSessionContext } from "@/lib/auth/server";
-import { runAfterSessionVerification } from "@/lib/auth/extraction-gate";
+import { runAfterSessionPermission } from "@/lib/auth/extraction-gate";
+import { hasPermission } from "@/lib/auth/authorization";
 import {
   clearAbsoluteSessionCookie,
   serializeAbsoluteSessionCookie,
@@ -195,7 +196,7 @@ function validateDeclarationData(value: unknown): DeclarationData | null {
 }
 
 export async function POST(request: Request) {
-  const guarded = await runAfterSessionVerification(
+  const guarded = await runAfterSessionPermission(
     () => getVerifiedSessionContext(request.headers.get("cookie")),
     () => {
       const response = noStoreJson({ error: "Se requiere una sesión activa." }, 401);
@@ -204,6 +205,9 @@ export async function POST(request: Request) {
       return response;
     },
     () => noStoreJson({ error: "No fue posible verificar la sesión." }, 503),
+    () => noStoreJson({ error: "No tienes permiso para realizar esta operación." }, 403),
+    (context) => context.session.user.role !== null &&
+      hasPermission(context.session.user.role, "declaraciones", "create"),
     async () => {
       try {
     const apiKey = process.env.GEMINI_API_KEY;

@@ -28,7 +28,10 @@ import {
   LOGIN_ENDPOINT,
   loginFailureMessage,
 } from "../../app/login/login-contract.ts";
-import { runAfterSessionVerification } from "../../lib/auth/extraction-gate.ts";
+import {
+  runAfterSessionPermission,
+  runAfterSessionVerification,
+} from "../../lib/auth/extraction-gate.ts";
 import {
   createLogoutRequest,
   isLogoutSuccessful,
@@ -265,10 +268,13 @@ test("logout succeeds only when the endpoint returns success", () => {
 test("anonymous extraction is denied before document parsing or Gemini", async () => {
   let fileReads = 0;
   let geminiCalls = 0;
-  const result = await runAfterSessionVerification(
-    async () => ({ authenticated: false, reason: "absent" }),
+  const result = await runAfterSessionPermission(
+    async () => ({ authenticated: false, reason: "invalid" }),
     () => "unauthorized",
     () => "unavailable",
+    () => "forbidden",
+    (context) => context.session.user.role !== null &&
+      hasPermission(context.session.user.role, "nombramientos", "create"),
     async () => {
       fileReads += 1;
       geminiCalls += 1;
@@ -302,12 +308,71 @@ test("verified active extraction can proceed", async () => {
   assert.equal(geminiCalls, 1);
 });
 
+test("admin and capturista can start extraction through the centralized create permission", async () => {
+  for (const role of ["admin", "capturista"]) {
+    let formReads = 0;
+    let fileReads = 0;
+    let geminiCalls = 0;
+    const result = await runAfterSessionPermission(
+      async () => ({ authenticated: true, session: { user: { role } } }),
+      () => "unauthorized",
+      () => "unavailable",
+      () => "forbidden",
+      (context) => context.session.user.role !== null &&
+        hasPermission(context.session.user.role, "nombramientos", "create"),
+      async () => {
+        formReads += 1;
+        fileReads += 1;
+        geminiCalls += 1;
+        return "extracted";
+      },
+    );
+
+    assert.equal(result.kind, "authenticated");
+    assert.equal(result.response, "extracted");
+    assert.equal(formReads, 1);
+    assert.equal(fileReads, 1);
+    assert.equal(geminiCalls, 1);
+  }
+});
+
+test("auditor, missing role, and invalid role are denied before extraction work", async () => {
+  for (const role of ["auditor", null, "unknown", [], {}]) {
+    let formReads = 0;
+    let fileReads = 0;
+    let geminiCalls = 0;
+    const result = await runAfterSessionPermission(
+      async () => ({ authenticated: true, session: { user: { role } } }),
+      () => "unauthorized",
+      () => "unavailable",
+      () => "forbidden",
+      (context) => context.session.user.role !== null &&
+        hasPermission(context.session.user.role, "declaraciones", "create"),
+      async () => {
+        formReads += 1;
+        fileReads += 1;
+        geminiCalls += 1;
+        return "extracted";
+      },
+    );
+
+    assert.equal(result.kind, "forbidden");
+    assert.equal(result.response, "forbidden");
+    assert.equal(formReads, 0);
+    assert.equal(fileReads, 0);
+    assert.equal(geminiCalls, 0);
+  }
+});
+
 test("inactive extraction sessions are denied before document parsing", async () => {
   let fileReads = 0;
-  const result = await runAfterSessionVerification(
+  const result = await runAfterSessionPermission(
     async () => ({ authenticated: false, reason: "inactive" }),
     () => "unauthorized",
     () => "unavailable",
+    () => "forbidden",
+    (context) => context.session.user.role !== null &&
+      hasPermission(context.session.user.role, "nombramientos", "create"),
     async () => {
       fileReads += 1;
       return "extracted";
@@ -321,12 +386,15 @@ test("inactive extraction sessions are denied before document parsing", async ()
 test("PocketBase verification failure denies extraction without parsing", async () => {
   let fileReads = 0;
   let geminiCalls = 0;
-  const result = await runAfterSessionVerification(
+  const result = await runAfterSessionPermission(
     async () => {
       throw new Error("simulated PocketBase outage");
     },
     () => "unauthorized",
     () => "unavailable",
+    () => "forbidden",
+    (context) => context.session.user.role !== null &&
+      hasPermission(context.session.user.role, "nombramientos", "create"),
     async () => {
       fileReads += 1;
       geminiCalls += 1;
