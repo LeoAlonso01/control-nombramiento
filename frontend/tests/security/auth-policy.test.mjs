@@ -21,6 +21,11 @@ import {
   loginFailureMessage,
 } from "../../app/login/login-contract.ts";
 import { runAfterSessionVerification } from "../../lib/auth/extraction-gate.ts";
+import {
+  createLogoutRequest,
+  isLogoutSuccessful,
+  LOGOUT_ENDPOINT,
+} from "../../lib/auth/logout-contract.ts";
 
 process.env.SESSION_SIGNING_SECRET = "unit-test-secret-with-at-least-32-bytes";
 
@@ -152,6 +157,23 @@ test("login success requires the API success contract and credential errors stay
     loginFailureMessage(401),
     "No fue posible iniciar sesión. Revisa tus datos e inténtalo de nuevo.",
   );
+});
+
+test("logout sends a same-origin POST to the existing endpoint without storing credentials", () => {
+  const request = createLogoutRequest();
+
+  assert.equal(LOGOUT_ENDPOINT, "/api/auth/logout");
+  assert.equal(request.method, "POST");
+  assert.equal(request.credentials, "same-origin");
+  assert.equal(request.cache, "no-store");
+  assert.equal("body" in request, false);
+});
+
+test("logout succeeds only when the endpoint returns success", () => {
+  assert.equal(isLogoutSuccessful(true, { success: true }), true);
+  assert.equal(isLogoutSuccessful(true, { success: false }), false);
+  assert.equal(isLogoutSuccessful(false, { success: true }), false);
+  assert.equal(isLogoutSuccessful(true, null), false);
 });
 
 test("anonymous extraction is denied before document parsing or Gemini", async () => {

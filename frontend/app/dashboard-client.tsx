@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -11,6 +12,8 @@ import {
   FileText,
   FilePlus2,
   LayoutDashboard,
+  LoaderCircle,
+  LogOut,
   Plus,
   Search,
   UsersRound,
@@ -33,6 +36,7 @@ import {
 } from "@/components/ui/table";
 import { CapturaNombramiento } from "@/app/captura-nombramiento";
 import { CapturaDeclaracion } from "@/app/captura-declaracion";
+import { createLogoutRequest, isLogoutSuccessful, LOGOUT_ENDPOINT } from "@/lib/auth/logout-contract";
 
 type Status = "Vigente" | "Pendiente" | "Próximo a vencer";
 type Appointment = {
@@ -75,6 +79,44 @@ function StatusBadge({ status }: { status: Status }) {
 }
 
 function Sidebar() {
+  const router = useRouter();
+  const logoutSubmittingRef = useRef(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+
+  async function handleLogout(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    if (logoutSubmittingRef.current) return;
+
+    logoutSubmittingRef.current = true;
+    setIsLoggingOut(true);
+    setLogoutError("");
+
+    try {
+      const response = await fetch(LOGOUT_ENDPOINT, createLogoutRequest());
+      let payload: { success?: unknown } | null = null;
+
+      try {
+        payload = (await response.json()) as { success?: unknown };
+      } catch {
+        payload = null;
+      }
+
+      if (!isLogoutSuccessful(response.ok, payload)) {
+        setLogoutError("No se pudo cerrar la sesión. Intenta de nuevo.");
+        return;
+      }
+
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setLogoutError("No se pudo conectar con el servicio. Intenta de nuevo.");
+    } finally {
+      logoutSubmittingRef.current = false;
+      setIsLoggingOut(false);
+    }
+  }
+
   return (
     <aside className="flex w-full shrink-0 flex-col bg-[#202833] text-white lg:min-h-screen lg:w-[252px]">
       <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5 lg:px-6 lg:py-7">
@@ -92,6 +134,22 @@ function Sidebar() {
           </a>
         ))}
       </nav>
+      <div className="px-3 pb-3 lg:px-4">
+        <Button
+          type="button"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          aria-busy={isLoggingOut}
+          className="h-10 w-full justify-start rounded-md bg-white/5 px-3 text-sm text-slate-200 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white"
+        >
+          {isLoggingOut ? (
+            <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Cerrando sesión…</>
+          ) : (
+            <><LogOut aria-hidden="true" className="size-4" /> Cerrar sesión</>
+          )}
+        </Button>
+        {logoutError && <p role="alert" aria-live="polite" className="mt-2 px-2 text-xs text-red-200">{logoutError}</p>}
+      </div>
       <div className="mt-auto hidden border-t border-white/10 px-6 py-5 lg:block">
         <p className="text-xs text-slate-400">Sistema de gestión institucional</p>
         <p className="mt-1 text-xs text-slate-500">Versión 1.0</p>
