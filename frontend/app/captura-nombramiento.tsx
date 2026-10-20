@@ -27,6 +27,7 @@ const emptyFields: AppointmentFields = {
   tipo_nombramiento: "", observaciones: "",
 };
 
+// Orden y etiquetas compartidos por la edición, el resumen y el conteo de campos vacíos.
 const fields: { key: keyof AppointmentFields; label: string; type?: "date" }[] = [
   { key: "numero_nombramiento", label: "Número de nombramiento" },
   { key: "fecha_emision", label: "Fecha de emisión", type: "date" },
@@ -83,6 +84,7 @@ export function CapturaNombramiento({ onClose }: Props) {
   const [decision, setDecision] = useState<"admitted" | "rejected">("admitted");
   const [operationId, setOperationId] = useState("");
 
+  /** Acepta formatos conocidos y normaliza el MIME usando la firma, no el nombre. */
   async function chooseFile(candidate?: File) {
     if (!candidate) return;
     if (candidate.size === 0) {
@@ -125,6 +127,7 @@ export function CapturaNombramiento({ onClose }: Props) {
     const form = new FormData();
     form.append("file", file);
     try {
+      // El resultado es una propuesta para revisión; esta pantalla aún no la persiste.
       const response = await fetch("/api/nombramientos/extraer", { method: "POST", body: form });
       const result: unknown = await response.json().catch(() => null);
       if (!response.ok) {
@@ -206,6 +209,7 @@ export function CapturaNombramiento({ onClose }: Props) {
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><Button type="button" variant="outline" onClick={() => setStage("upload")} className="h-10 rounded-md">Volver al documento</Button><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => setStage("reject")} className="h-10 rounded-md border-red-200 text-red-800 hover:bg-red-50">Rechazar nombramiento</Button><Button type="button" onClick={() => setStage("admit")} className="h-10 rounded-md bg-[#a82732] px-4 text-white hover:bg-[#8e202a]">Admitir nombramiento</Button></div></div>
         </>}
 
+        {/* Estas etapas solo simulan la decisión; no crean un registro persistente. */}
         {(stage === "admit" || stage === "reject") && <Card className="mx-auto max-w-2xl rounded-xl border-0 py-0 shadow-sm ring-1 ring-slate-200/80"><CardHeader className="border-b border-slate-100 px-5 py-5"><CardTitle className="text-lg">{stage === "admit" ? "Confirmar admisión" : "Confirmar rechazo"}</CardTitle><p className="text-sm text-slate-600">{stage === "admit" ? "Se generará una confirmación de guardado simulado en esta sesión. Esta acción no valida la autenticidad ni la validez jurídica del documento." : "El registro será rechazado en este flujo. No se guardará información."}</p></CardHeader><CardContent className="flex flex-col-reverse justify-end gap-2 p-5 sm:flex-row"><Button type="button" variant="outline" onClick={() => setStage("review")} className="h-10 rounded-md">Cancelar</Button><Button type="button" onClick={() => { setDecision(stage === "admit" ? "admitted" : "rejected"); if (stage === "admit") setOperationId(`SIM-${globalThis.crypto?.randomUUID?.().slice(0, 8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`); setStage("done"); }} className={`h-10 rounded-md px-4 text-white ${stage === "admit" ? "bg-[#a82732] hover:bg-[#8e202a]" : "bg-slate-700 hover:bg-slate-800"}`}>{stage === "admit" ? "Confirmar admisión" : "Sí, rechazar"}</Button></CardContent></Card>}
 
         {stage === "done" && <Card className="mx-auto max-w-3xl rounded-xl border-0 py-0 shadow-sm ring-1 ring-slate-200/80"><CardHeader className="items-center border-b border-slate-100 px-5 py-7 text-center"><span className={`mb-2 flex size-12 items-center justify-center rounded-full ${decision === "admitted" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>{decision === "admitted" ? <CheckCircle2 className="size-6" /> : <X className="size-6" />}</span><CardTitle className="text-xl">{decision === "admitted" ? "Admisión confirmada" : "Nombramiento rechazado"}</CardTitle><p className="max-w-xl text-sm text-slate-600">{decision === "admitted" ? <>Guardado simulado. El registro no se almacenó permanentemente y existe solo en el estado de esta pantalla. Identificador de operación: <strong>{operationId}</strong>.</> : "El flujo se marcó como rechazado. No se guardaron datos."}</p></CardHeader><CardContent className="p-5 sm:p-6"><h3 className="mb-3 font-semibold">{decision === "admitted" ? "Resumen de los datos aceptados" : "Resumen revisado"}</h3><dl className="grid gap-3 sm:grid-cols-2">{acceptedEntries.map(([label, value]) => <div key={label} className="rounded-md bg-slate-50 p-3"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-slate-800">{value}</dd></div>)}<div className="rounded-md bg-slate-50 p-3 sm:col-span-2"><dt className="text-xs text-slate-500">Observaciones</dt><dd className="mt-1 whitespace-pre-wrap text-sm font-medium text-slate-800">{fieldsValue.observaciones || "No identificado"}</dd></div></dl><div className="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-5 sm:flex-row"><Button type="button" variant="outline" onClick={onClose} className="h-10 rounded-md">Volver al panel</Button><Button type="button" onClick={startNew} className="h-10 rounded-md bg-[#a82732] px-4 text-white hover:bg-[#8e202a]"><RotateCcw className="size-4" /> Nueva captura</Button></div></CardContent></Card>}

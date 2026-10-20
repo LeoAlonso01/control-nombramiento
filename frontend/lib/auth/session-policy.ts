@@ -6,6 +6,7 @@ export type SessionPolicyRecord = {
 
 export type SessionPolicyResult = "authenticated" | "invalid" | "inactive";
 
+/** Acepta la sesión solo si el token, la colección, el ID y la actividad coinciden. */
 export function classifySessionState(
   tokenValid: boolean,
   record: SessionPolicyRecord | null,
@@ -20,6 +21,7 @@ export function classifySessionState(
   return "authenticated";
 }
 
+/** Distingue credenciales rechazadas de una indisponibilidad temporal del servicio. */
 export function classifyRefreshFailure(
   status: number | null,
 ): "invalid" | "unavailable" {

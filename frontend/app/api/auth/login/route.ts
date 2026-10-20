@@ -20,6 +20,7 @@ type UserAuthRecord = RecordModel & { activo?: unknown };
 
 const LOGIN_FAILED = "No fue posible iniciar sesión.";
 
+/** Autentica contra PocketBase y emite cookies solo para una cuenta activa de users. */
 export async function POST(request: Request) {
   const origin = validatePostOrigin(request);
 
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
   const credentials = body.value as Record<string, unknown>;
   const keys = Object.keys(credentials);
 
+  // La lista exacta evita aceptar parámetros adicionales como rol o estado.
   if (
     keys.length !== 2 ||
     !Object.hasOwn(credentials, "identity") ||
@@ -133,6 +135,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // El diagnóstico conserva solo la etapa; nunca registra credenciales o respuesta remota.
     console.error("[auth-login-diagnostic] unexpected_failure", { stage: diagnosticStage });
     return noStoreJson(
       { error: "El servicio de autenticación no está disponible." },

@@ -38,6 +38,7 @@ import {
   LOGOUT_ENDPOINT,
 } from "../../lib/auth/logout-contract.ts";
 
+// Se usa un valor sintético exclusivo del proceso de pruebas; no es una credencial del entorno.
 process.env.SESSION_SIGNING_SECRET = "unit-test-secret-with-at-least-32-bytes";
 
 test("authorization matrix defines every role, resource, and action combination", () => {
@@ -156,7 +157,7 @@ test("a user who becomes inactive is rejected", () => {
     state,
     "inactive",
   );
-  // Role resolution must be downstream of this gate in getVerifiedSessionContext.
+  // La resolución de rol debe ocurrir después de esta validación en getVerifiedSessionContext.
   assert.notEqual(state, "authenticated");
 });
 

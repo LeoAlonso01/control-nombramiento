@@ -1,5 +1,6 @@
 
 import dotenv from "dotenv";
+// Verificación manual de conectividad con Gemini; requiere configuración local y genera una llamada externa.
 dotenv.config({ path: ".env.local" });
 import { GoogleGenAI } from "@google/genai";
 

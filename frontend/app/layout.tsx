@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   description: "Panel de control para la gestión institucional de nombramientos.",
 };
 
+/** Define el idioma, tipografía y estilos compartidos por todas las rutas. */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html

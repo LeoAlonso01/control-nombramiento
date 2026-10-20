@@ -37,6 +37,7 @@ const buttonVariants = cva(
   }
 )
 
+/** Envuelve el botón de Base UI para centralizar variantes y conservar sus props accesibles. */
 function Button({
   className,
   variant = "default",

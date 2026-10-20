@@ -13,6 +13,7 @@ import {
   PocketBaseConfigurationError,
 } from "@/lib/pocketbase/server";
 
+/** Renueva la sesión verificada o elimina ambas cookies cuando deja de ser válida. */
 export async function GET(request: Request) {
   try {
     const context = await getVerifiedSessionContext(

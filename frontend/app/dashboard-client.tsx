@@ -47,6 +47,7 @@ type Appointment = {
   status: Status;
 };
 
+// Datos de demostración locales; no representan registros leídos de PocketBase.
 const appointments: Appointment[] = [
   { id: "NOM-2026-0148", name: "Mariana Solís Vega", area: "Dirección Administrativa", date: "10 oct 2026", status: "Vigente" },
   { id: "NOM-2026-0147", name: "Andrés Rivas Luna", area: "Unidad de Planeación", date: "09 oct 2026", status: "Pendiente" },
@@ -62,6 +63,7 @@ const navItems = [
   { label: "Reportes", icon: FileText, active: false },
 ];
 
+// Indicadores ilustrativos del prototipo, no agregados calculados desde registros reales.
 const metrics = [
   { label: "Total de nombramientos", value: "248", detail: "Registros en el sistema", icon: UsersRound, tone: "text-slate-600 bg-slate-100" },
   { label: "Vigentes", value: "196", detail: "79% del total", icon: CheckCircle2, tone: "text-emerald-700 bg-emerald-50" },
@@ -84,6 +86,7 @@ function Sidebar() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
 
+  /** Cierra la sesión por el endpoint y navega solo si este confirma el borrado de cookies. */
   async function handleLogout(event: MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     if (logoutSubmittingRef.current) return;
@@ -188,6 +191,7 @@ export default function Home() {
     }, 0);
     return () => window.clearTimeout(timeout);
   }, []);
+  // La búsqueda actual solo filtra el arreglo de demostración cargado en este módulo.
   const filteredAppointments = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("es-MX");
     if (!normalizedQuery) return appointments;

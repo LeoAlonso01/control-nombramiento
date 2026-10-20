@@ -13,8 +13,8 @@ export class PocketBaseConfigurationError extends Error {
 }
 
 /**
- * Creates an isolated PocketBase client for one server request.
- * `cookieHeader` is the incoming request's complete Cookie header, if present.
+ * Crea un cliente aislado por petición. Nunca debe compartirse entre solicitudes
+ * porque authStore contiene el token del usuario actual.
  */
 export function createPocketBaseServer(
   cookieHeader?: string | null,
@@ -40,7 +40,7 @@ export function createPocketBaseServer(
   return pb;
 }
 
-/** Exports the current SDK auth state as a secure server-set cookie header. */
+/** Reduce el registro de authStore a metadatos mínimos y devuelve la cookie renovada. */
 export function exportPocketBaseAuthCookie(
   pb: PocketBase,
   absoluteExpiresAt?: number,

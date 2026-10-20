@@ -20,6 +20,8 @@ export const dynamic = "force-dynamic";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
 const ALLOWED_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 
+// La respuesta del modelo se limita a este contrato temporal de extracción;
+// no representa el esquema de una colección persistida.
 const EXTRACTION_PROMPT = `
 Analiza el nombramiento institucional adjunto y extrae los datos conforme al esquema JSON definido.
 
@@ -77,6 +79,8 @@ function jsonError(message: string, status: number) {
 }
 
 export async function POST(request: Request) {
+  // La puerta valida sesión y permiso create antes de leer multipart o enviar
+  // el documento al proveedor externo.
   const guarded = await runAfterSessionPermission(
     () => getVerifiedSessionContext(request.headers.get("cookie")),
     () => {
@@ -104,6 +108,7 @@ export async function POST(request: Request) {
       return jsonError("El archivo supera el límite de 10 MiB.", 413);
     }
 
+    // El límite de Content-Length es preventivo; el tamaño del objeto File se valida también.
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -153,6 +158,7 @@ export async function POST(request: Request) {
 
     const ai = new GoogleGenAI({ apiKey });
 
+    // El archivo se transmite al proveedor para extraer una propuesta que luego se valida.
     const result = await ai.models.generateContent({
       model,
       contents: [
@@ -208,7 +214,7 @@ export async function POST(request: Request) {
     const expectedFields = [...stringFields, "observaciones"];
     const actualFields = Object.keys(data);
 
-    // Rechazar campos ausentes o adicionales.
+    // Rechazar campos ausentes o adicionales antes de devolver contenido generado.
     if (
       expectedFields.some((field) => !Object.hasOwn(data, field)) ||
       actualFields.some((field) => !expectedFields.includes(field as (typeof expectedFields)[number]))

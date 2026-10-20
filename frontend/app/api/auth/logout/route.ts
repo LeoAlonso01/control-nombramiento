@@ -1,6 +1,7 @@
 import { noStoreJson, clearPocketBaseAuthCookie, validatePostOrigin } from "@/lib/auth/http";
 import { clearAbsoluteSessionCookie } from "@/lib/auth/absolute-session";
 
+/** Valida el origen antes de invalidar las cookies de sesión del navegador. */
 export async function POST(request: Request) {
   const origin = validatePostOrigin(request);
 

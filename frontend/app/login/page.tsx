@@ -1,6 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 import { LoginForm } from "@/app/login/login-form";
 
+/** Presentación del acceso; la autenticación real se ejecuta en la ruta API del servidor. */
 export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f3f5f7] px-4 py-8 text-slate-900 sm:px-6">

@@ -60,6 +60,7 @@ const DECLARATION_TYPE_LABELS = {
   conclusion: "Conclusión",
 } as const;
 
+/** Identifica los tipos admitidos por su firma binaria; el MIME del navegador no basta. */
 function detectMimeType(signature: Uint8Array): string | null {
   if (
     signature.length >= 5 &&
@@ -85,6 +86,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
 }
 
+/** Convierte la respuesta externa al estado editable y descarta valores de tipo no reconocido. */
 function toDeclarationFields(data: Record<string, unknown>): DeclarationFields {
   const value = (key: keyof DeclarationData) =>
     typeof data[key] === "string" ? data[key] as string : "";
@@ -103,6 +105,7 @@ function toDeclarationFields(data: Record<string, unknown>): DeclarationFields {
   };
 }
 
+/** Comprueba objetos JSON sin aceptar null ni arreglos como respuestas de API. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -123,6 +126,7 @@ export function CapturaDeclaracion({ onClose }: Props) {
   const [decision, setDecision] = useState<"admitted" | "rejected">("admitted");
   const [operationId, setOperationId] = useState("");
 
+  /** Valida tamaño y firma localmente para dar feedback temprano; el servidor valida de nuevo. */
   async function chooseFile(candidate?: File) {
     if (!candidate || isExtracting) return;
 
@@ -157,6 +161,7 @@ export function CapturaDeclaracion({ onClose }: Props) {
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     void chooseFile(event.target.files?.[0]);
+    // Permite volver a seleccionar el mismo archivo tras quitarlo o recibir un error.
     event.target.value = "";
   }
 
@@ -174,8 +179,10 @@ export function CapturaDeclaracion({ onClose }: Props) {
     setIsSlow(false);
     setError("");
 
+    // El bloqueo en ref evita envíos duplicados incluso antes del siguiente render.
     const controller = new AbortController();
     abortController.current = controller;
+    // El aviso de demora no cancela la operación; el límite posterior sí aborta la petición.
     const slowTimer = window.setTimeout(() => setIsSlow(true), SLOW_REQUEST_MS);
     const timeout = window.setTimeout(
       () => controller.abort("timeout"),
@@ -208,6 +215,7 @@ export function CapturaDeclaracion({ onClose }: Props) {
         throw new Error("La respuesta del servicio no tiene el formato esperado.");
       }
 
+      // La respuesta de Gemini permanece en el estado local hasta que exista un guardado real.
       setFields(toDeclarationFields(result.data));
       setStage("review");
     } catch (cause) {
@@ -235,6 +243,7 @@ export function CapturaDeclaracion({ onClose }: Props) {
   }
 
   function cancelExtraction() {
+    // La respuesta de abort se distingue en el catch mediante signal.reason.
     abortController.current?.abort("user");
   }
 
@@ -363,6 +372,7 @@ export function CapturaDeclaracion({ onClose }: Props) {
           </Card>
         </>}
 
+        {/* La admisión/rechazo es una simulación local; aquí no se escribe en PocketBase. */}
         {(stage === "admit" || stage === "reject") && <Card className="mx-auto max-w-3xl rounded-xl border-0 bg-white py-0 shadow-sm ring-1 ring-slate-200/80">
           <CardHeader className="border-b border-slate-100 px-5 py-5 sm:px-6"><CardTitle className="text-lg">{stage === "admit" ? "Confirmar admisión" : "Confirmar rechazo"}</CardTitle><p className="text-sm text-slate-600">{stage === "admit" ? "Revisa el resumen antes de confirmar. El guardado será simulado y no valida la autenticidad ni el cumplimiento legal del documento." : "Confirma el rechazo de esta captura. No se guardará información."}</p></CardHeader>
           <CardContent className="p-5 sm:p-6"><dl className="grid gap-3 sm:grid-cols-2">{reviewedEntries.map(([label, value]) => <div key={label} className="rounded-md bg-slate-50 p-3"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-slate-800">{value}</dd></div>)}</dl><div className="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-5 sm:flex-row"><Button type="button" variant="outline" onClick={() => setStage("review")} className="h-10 rounded-md">Volver a revisar</Button><Button type="button" onClick={() => { setDecision(stage === "admit" ? "admitted" : "rejected"); if (stage === "admit") setOperationId(`SIM-${globalThis.crypto?.randomUUID?.().slice(0, 8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`); setStage("done"); }} className={`h-10 rounded-md px-4 text-white ${stage === "admit" ? "bg-[#a82732] hover:bg-[#8e202a]" : "bg-slate-700 hover:bg-slate-800"}`}>{stage === "admit" ? "Confirmar admisión" : "Sí, rechazar"}</Button></div></CardContent>

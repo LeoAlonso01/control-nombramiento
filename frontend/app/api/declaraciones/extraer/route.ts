@@ -23,6 +23,7 @@ const ALLOWED_TYPES = new Set([
   "image/png",
 ]);
 
+// Contrato esperado de la extracción, independiente del esquema de almacenamiento.
 const EXPECTED_FIELDS = [
   "nombre_declarante",
   "curp_declarante",
@@ -88,6 +89,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+/** Confirma que los bytes iniciales correspondan al MIME declarado por el formulario. */
 function hasValidSignature(buffer: Buffer, mimeType: string): boolean {
   if (mimeType === "application/pdf") {
     return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
@@ -114,6 +116,7 @@ function hasValidSignature(buffer: Buffer, mimeType: string): boolean {
   return false;
 }
 
+/** Comprueba formato y calendario real; el patrón por sí solo aceptaría fechas imposibles. */
 function isValidIsoDate(value: unknown): value is string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
@@ -129,6 +132,7 @@ function isValidIsoDate(value: unknown): value is string {
   );
 }
 
+/** Valida forma, campos y tipos de la respuesta del modelo antes de exponerla al cliente. */
 function validateDeclarationData(value: unknown): DeclarationData | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
@@ -196,6 +200,8 @@ function validateDeclarationData(value: unknown): DeclarationData | null {
 }
 
 export async function POST(request: Request) {
+  // La puerta valida sesión y permiso create antes de leer multipart o enviar
+  // el documento al proveedor externo.
   const guarded = await runAfterSessionPermission(
     () => getVerifiedSessionContext(request.headers.get("cookie")),
     () => {
@@ -230,6 +236,7 @@ export async function POST(request: Request) {
       return jsonError("El archivo supera el límite de 10 MiB.", 413);
     }
 
+    // La autenticación y autorización ocurrieron antes de leer el cuerpo multipart.
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -259,6 +266,7 @@ export async function POST(request: Request) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
+    // Gemini recibe el documento únicamente después de las validaciones de tamaño y firma.
     const result = await ai.models.generateContent({
       model,
       contents: [

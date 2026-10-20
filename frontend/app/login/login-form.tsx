@@ -26,6 +26,7 @@ export function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  /** Envía las credenciales al servidor y navega solo tras el contrato de éxito. */
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submittingRef.current) return;
@@ -37,6 +38,7 @@ export function LoginForm() {
       return;
     }
 
+    // El ref bloquea dobles envíos de forma inmediata, antes de que React actualice el botón.
     submittingRef.current = true;
     setIsSubmitting(true);
     setErrorMessage("");
@@ -55,6 +57,7 @@ export function LoginForm() {
       }
 
       if (!isLoginSuccessful(response.ok, payload)) {
+        // Se limpia la contraseña tras un rechazo para no dejarla en el formulario.
         setPassword("");
         setErrorMessage(loginFailureMessage(response.status));
         return;

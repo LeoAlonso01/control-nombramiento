@@ -55,7 +55,11 @@ export class SessionVerificationError extends Error {
   }
 }
 
-/** Verifies a request cookie and retains its refreshed client for server handlers. */
+/**
+ * Verifica cookies y token contra PocketBase, comprueba identidad y actividad,
+ * y resuelve el rol desde el registro renovado. Devuelve el cliente renovado
+ * para que el handler pueda emitir las cookies actualizadas.
+ */
 export async function getVerifiedSessionContext(
   cookieHeader?: string | null,
 ): Promise<VerifiedSessionContext> {
@@ -71,7 +75,7 @@ export async function getVerifiedSessionContext(
 
   const pb = createPocketBaseServer(cookieHeader);
 
-  // This is only a local expiry check. A usable token is still verified by PocketBase.
+  // La validez local evita solicitudes innecesarias, pero no sustituye authRefresh.
   if (!pb.authStore.isValid) {
     pb.authStore.clear();
     return { authenticated: false, reason: "invalid" };
@@ -91,7 +95,7 @@ export async function getVerifiedSessionContext(
       return { authenticated: false, reason: "invalid" };
     }
 
-    // Do not expose or log PocketBase's response, URL, token, or request data.
+    // No expone ni registra la respuesta de PocketBase, su URL, el token o los datos de petición.
     throw new SessionVerificationError();
   }
 
@@ -105,12 +109,11 @@ export async function getVerifiedSessionContext(
     };
   }
 
-  // Resolve authorization only from the record returned by authenticated authRefresh,
-  // after identity and active status have been verified above.
+  // El rol se toma únicamente del registro renovado, tras validar identidad y activo.
   const configuredAdminId = process.env.APP_ADMIN_USER_ID;
   const role = resolveAppRole(record.id, configuredAdminId, record.rol);
 
-  // Keep only fields required to identify the auth record in the SDK cookie.
+  // No se persiste el rol en la cookie: cada petición vuelve a resolverlo en PocketBase.
   pb.authStore.save(pb.authStore.token, {
     id: record.id,
     collectionId: record.collectionId,
@@ -130,7 +133,7 @@ export async function getVerifiedSessionContext(
   return { authenticated: true, session, pocketBase: pb, deadline };
 }
 
-/** Verifies a request cookie and returns only safe session data. */
+/** Verifica la sesión y expone únicamente los datos de usuario necesarios para la aplicación. */
 export async function getServerSession(
   cookieHeader?: string | null,
 ): Promise<SessionResult> {
@@ -141,7 +144,7 @@ export async function getServerSession(
     : { authenticated: false };
 }
 
-/** Checks the only permission granted in this phase: explicit app administration. */
+/** Conserva el control administrativo específico existente para operaciones app:admin. */
 export async function requirePermission(
   permission: AppPermission,
   cookieHeader?: string | null,

@@ -1,3 +1,4 @@
+/** Acepta únicamente URL HTTP(S) sin credenciales embebidas, consulta ni fragmento. */
 export function parsePocketBaseUrl(value: string): URL | null {
   try {
     const url = new URL(value);

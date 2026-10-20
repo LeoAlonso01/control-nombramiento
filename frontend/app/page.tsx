@@ -19,7 +19,9 @@ function SessionUnavailable() {
   );
 }
 
+/** Control de servidor para la ruta raíz; el cliente no decide si la sesión es válida. */
 async function ProtectedDashboard() {
+  // La página depende de cookies de solicitud; se fuerza el tramo dinámico antes de leerlas.
   await connection();
 
   const cookieStore = await cookies();
@@ -34,6 +36,8 @@ async function ProtectedDashboard() {
     .filter((cookie): cookie is string => cookie !== null)
     .join("; ");
 
+  // La verificación remota puede fallar por indisponibilidad; ese estado se muestra aparte
+  // y no se transforma en una sesión anónima ni en acceso al dashboard.
   const access = await resolveDashboardAccess(() =>
     getServerSession(authCookies || null),
   );

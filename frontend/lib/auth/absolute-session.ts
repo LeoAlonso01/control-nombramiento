@@ -4,6 +4,7 @@ import { cookieParse, cookieSerialize } from "pocketbase";
 export const ABSOLUTE_SESSION_COOKIE_NAME = "app_session";
 export const ABSOLUTE_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
+/** Datos firmados que vinculan la sesión absoluta con un usuario y un plazo fijo. */
 export type AbsoluteSessionDeadline = {
   userId: string;
   issuedAt: number;
@@ -28,22 +29,27 @@ function signingSecret(): string {
   return secret;
 }
 
+/** Falla de forma explícita si el secreto no cumple la longitud mínima configurada. */
 export function assertSessionSigningConfigured(): void {
   signingSecret();
 }
 
+/** Calcula HMAC-SHA256 para detectar alteraciones del contenido firmado. */
 function signature(payload: string, secret: string): Buffer {
   return createHmac("sha256", secret).update(payload).digest();
 }
 
+/** Codifica los datos para transporte; Base64URL no cifra su contenido. */
 function encodePayload(payload: { userId: string; issuedAt: number; expiresAt: number }): string {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
 
+/** Adjunta la firma al payload codificado para formar el valor de la cookie. */
 function signPayload(payload: string, secret: string): string {
   return `${payload}.${signature(payload, secret).toString("base64url")}`;
 }
 
+/** Verifica firma, tipos e intervalo temporal fijo antes de aceptar los datos. */
 function parseSignedValue(value: string, now: number): AbsoluteSessionDeadline | null {
   const [encodedPayload, encodedSignature, extra] = value.split(".");
 
@@ -64,6 +70,7 @@ function parseSignedValue(value: string, now: number): AbsoluteSessionDeadline |
 
   if (
     suppliedSignature.length !== expectedSignature.length ||
+    // La longitud se compara antes para que timingSafeEqual reciba buffers compatibles.
     !timingSafeEqual(suppliedSignature, expectedSignature) ||
     typeof decoded !== "object" || decoded === null || Array.isArray(decoded)
   ) {
@@ -96,6 +103,7 @@ function parseSignedValue(value: string, now: number): AbsoluteSessionDeadline |
   };
 }
 
+/** Crea el vencimiento absoluto firmado; las renovaciones no extienden este plazo. */
 export function createAbsoluteSessionDeadline(
   userId: string,
   now = Date.now(),
@@ -111,6 +119,7 @@ export function createAbsoluteSessionDeadline(
   return { userId, issuedAt: now, expiresAt, value };
 }
 
+/** Lee y valida la cookie firmada; su contenido no sustituye la verificación ante PocketBase. */
 export function readAbsoluteSessionDeadline(
   cookieHeader: string | null | undefined,
   now = Date.now(),
@@ -121,6 +130,7 @@ export function readAbsoluteSessionDeadline(
   return typeof value === "string" ? parseSignedValue(value, now) : null;
 }
 
+/** Serializa la fecha límite como cookie inaccesible desde JavaScript del navegador. */
 export function serializeAbsoluteSessionCookie(
   deadline: AbsoluteSessionDeadline,
 ): string {
@@ -133,6 +143,7 @@ export function serializeAbsoluteSessionCookie(
   });
 }
 
+/** Invalida la cookie absoluta al cerrar sesión o rechazar la sesión. */
 export function clearAbsoluteSessionCookie(): string {
   return cookieSerialize(ABSOLUTE_SESSION_COOKIE_NAME, "", {
     httpOnly: true,

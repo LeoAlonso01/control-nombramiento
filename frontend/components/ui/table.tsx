@@ -3,6 +3,7 @@
 import * as React from "react"
 import { cn } from "cn"
 
+/** Contenedor con desplazamiento horizontal para tablas en pantallas estrechas. */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div

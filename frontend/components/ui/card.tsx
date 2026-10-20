@@ -1,6 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 
+/** Primitivas de composición visual; los consumidores controlan contenido y semántica. */
 function Card({
   className,
   size = "default",

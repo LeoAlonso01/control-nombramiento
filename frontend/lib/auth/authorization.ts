@@ -32,7 +32,10 @@ const CAPTURE_ACTIONS: readonly AuthorizationAction[] = [
 const READ_ONLY_ACTIONS: readonly AuthorizationAction[] = ["read"];
 const NO_ACTIONS: readonly AuthorizationAction[] = [];
 
-/** Central policy only. This does not resolve or persist a user's assigned role. */
+/**
+ * Matriz central de permisos de la aplicación. Describe la política, pero no
+ * autentica usuarios ni garantiza por sí sola que una ruta la esté aplicando.
+ */
 export const AUTHORIZATION_POLICY: PermissionMatrix = {
   admin: {
     users: ALL_ACTIONS,
@@ -54,7 +57,7 @@ export const AUTHORIZATION_POLICY: PermissionMatrix = {
   },
 };
 
-/** Unknown runtime values and missing matrix entries are denied. */
+/** Evalúa una combinación de rol, recurso y acción; las entradas sin permiso se deniegan. */
 export function hasPermission(
   role: AppRole,
   resource: AuthorizationResource,
@@ -66,9 +69,9 @@ export function hasPermission(
 }
 
 /**
- * Resolves the configured administrator from a server-verified user ID.
- * `assignedRole` must come from a trusted server-side source. Runtime values are
- * validated because TypeScript types do not validate PocketBase responses.
+ * Prioriza el ID administrativo configurado y, para las demás cuentas, acepta
+ * únicamente un rol válido recibido de una fuente verificada del servidor.
+ * La firma `unknown` evita confiar en tipos TypeScript para validar datos externos.
  */
 export function resolveAppRole(
   verifiedUserId: string,

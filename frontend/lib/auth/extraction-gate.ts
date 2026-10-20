@@ -8,7 +8,7 @@ export type ProtectedActionResult<TContext, TResponse> =
 
 type SessionAuthorizationContext = Extract<VerifiedSessionContext, { authenticated: true }>;
 
-/** Runs protected work only after the supplied server session is verified. */
+/** Ejecuta una acción solo después de que el verificador de servidor confirme la sesión. */
 export async function runAfterSessionVerification<
   TContext extends { authenticated: boolean },
   TResponse,
@@ -23,6 +23,7 @@ export async function runAfterSessionVerification<
   try {
     context = await verify();
   } catch {
+    // Un error al consultar el servicio no debe convertirse en autorización.
     return { kind: "unavailable", response: unavailableResponse() };
   }
 
@@ -36,7 +37,7 @@ export async function runAfterSessionVerification<
   return { kind: "authenticated", context: authenticatedContext, response };
 }
 
-/** Verifies session and role permission before running protected work. */
+/** Comprueba sesión y permiso antes de leer o procesar entradas de una operación protegida. */
 export async function runAfterSessionPermission<TResponse>(
   verify: () => Promise<VerifiedSessionContext>,
   unauthenticatedResponse: () => TResponse,
@@ -57,6 +58,8 @@ export async function runAfterSessionPermission<TResponse>(
     return { kind: "unauthenticated", response: unauthenticatedResponse() };
   }
 
+  // La llamada de autorización recibe solo el contexto verificado; la acción costosa
+  // queda después de este punto para evitar procesar solicitudes denegadas.
   if (!isAuthorized(context)) {
     return { kind: "forbidden", response: forbiddenResponse() };
   }

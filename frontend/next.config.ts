@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // La regla conecta el cargador de Tailwind v4 con Turbopack para los archivos CSS.
   experimental: {
     agentFeedback: true,
   },

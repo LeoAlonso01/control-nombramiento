@@ -10,12 +10,14 @@ export type OriginValidation =
   | { allowed: true }
   | { allowed: false; reason: "forbidden" | "misconfigured" };
 
+/** Evita que respuestas con sesión o datos de usuario queden almacenadas en caché. */
 export function noStoreJson(body: unknown, status = 200): NextResponse {
   const response = NextResponse.json(body, { status });
   response.headers.set("Cache-Control", "no-store");
   return response;
 }
 
+/** Normaliza solo valores que representen un origen, no una URL con ruta o credenciales. */
 function parseOrigin(value: string): string | null {
   try {
     const url = new URL(value);
@@ -37,6 +39,7 @@ function parseOrigin(value: string): string | null {
   }
 }
 
+/** Mitiga solicitudes cross-origin en operaciones POST basadas en cookies. */
 export function validatePostOrigin(request: Request): OriginValidation {
   const requestOrigin = request.headers.get("origin");
 
@@ -68,7 +71,7 @@ export function validatePostOrigin(request: Request): OriginValidation {
     return { allowed: false, reason: "misconfigured" };
   }
 
-  // Local development fallback: require the request's own origin to match.
+  // En desarrollo sin APP_ORIGIN, limita la solicitud al origen de la propia petición.
   return normalizedRequestOrigin === new URL(request.url).origin
     ? { allowed: true }
     : { allowed: false, reason: "forbidden" };
@@ -78,6 +81,7 @@ export type LimitedJsonBody =
   | { ok: true; value: unknown }
   | { ok: false; status: 400 | 413 | 415; message: string };
 
+/** Lee JSON con límite de bytes y rechaza MIME, tamaño, UTF-8 o sintaxis inválidos. */
 export async function readLimitedJsonBody(
   request: Request,
   maximumBytes = 8 * 1024,
@@ -121,6 +125,8 @@ export async function readLimitedJsonBody(
   let totalBytes = 0;
 
   try {
+    // Se cuenta el cuerpo leído, además de revisar Content-Length, porque ese encabezado
+    // puede faltar o no reflejar el tamaño real transmitido.
     while (true) {
       const { done, value } = await reader.read();
 

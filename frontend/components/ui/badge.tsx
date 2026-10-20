@@ -26,6 +26,7 @@ const badgeVariants = cva(
   }
 )
 
+/** Insignia accesible con render polimórfico de Base UI y variantes de estilo compartidas. */
 function Badge({
   className,
   variant = "default",
