@@ -7,22 +7,17 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MAX_DOCUMENT_SIZE } from "@/lib/files/document-validation";
+import {
+  toAppointmentEditableFields,
+  validateAppointmentExtraction,
+  type AppointmentEditableFields,
+} from "@/lib/records/contracts";
 
-type AppointmentFields = {
-  numero_nombramiento: string;
-  fecha_emision: string;
-  lugar_emision: string;
-  nombre_completo: string;
-  cargo: string;
-  departamento: string;
-  dependencia: string;
-  fecha_inicio: string;
-  tipo_nombramiento: string;
-  observaciones: string;
-};
+type AppointmentFields = AppointmentEditableFields;
 
 const emptyFields: AppointmentFields = {
-  numero_nombramiento: "", fecha_emision: "", lugar_emision: "", nombre_completo: "",
+  numero_nombramiento: "", fecha_emision: "", lugar_emision: "", nombre_funcionario: "",
   cargo: "", departamento: "", dependencia: "", fecha_inicio: "",
   tipo_nombramiento: "", observaciones: "",
 };
@@ -32,7 +27,7 @@ const fields: { key: keyof AppointmentFields; label: string; type?: "date" }[] =
   { key: "numero_nombramiento", label: "Número de nombramiento" },
   { key: "fecha_emision", label: "Fecha de emisión", type: "date" },
   { key: "lugar_emision", label: "Lugar de emisión" },
-  { key: "nombre_completo", label: "Nombre completo" },
+  { key: "nombre_funcionario", label: "Nombre completo" },
   { key: "cargo", label: "Cargo" },
   { key: "departamento", label: "Departamento" },
   { key: "dependencia", label: "Dependencia" },
@@ -91,7 +86,7 @@ export function CapturaNombramiento({ onClose }: Props) {
       setError("El archivo está vacío. Selecciona un archivo válido.");
       return;
     }
-    if (candidate.size > 10 * 1024 * 1024) {
+    if (candidate.size > MAX_DOCUMENT_SIZE) {
       setError("El archivo supera el límite de 10 MiB.");
       return;
     }
@@ -138,15 +133,11 @@ export function CapturaNombramiento({ onClose }: Props) {
       if (typeof result !== "object" || result === null || !("data" in result) || typeof result.data !== "object" || result.data === null) {
         throw new Error("La respuesta del servicio no tiene el formato esperado.");
       }
-      const data = result.data as Record<string, unknown>;
-      const nextFields = { ...emptyFields };
-      for (const field of fields) {
-        const value = data[field.key];
-        nextFields[field.key] = typeof value === "string" ? value : "";
+      const extraction = validateAppointmentExtraction(result.data);
+      if (!extraction) {
+        throw new Error("La respuesta del servicio no tiene el formato esperado.");
       }
-      const notes = data.observaciones;
-      nextFields.observaciones = Array.isArray(notes) ? notes.filter((note): note is string => typeof note === "string").join("\n") : "";
-      setFieldsValue(nextFields);
+      setFieldsValue(toAppointmentEditableFields(extraction));
       setStage("review");
     } catch (cause) {
       setError(cause instanceof TypeError ? "No se pudo conectar con el servicio. Revisa tu conexión e inténtalo de nuevo." : cause instanceof Error ? cause.message : "Ocurrió un error al procesar el documento.");

@@ -5,6 +5,12 @@ import { getVerifiedSessionContext } from "@/lib/auth/server";
 import { runAfterSessionPermission } from "@/lib/auth/extraction-gate";
 import { hasPermission } from "@/lib/auth/authorization";
 import {
+  hasMatchingDocumentSignature,
+  MAX_DOCUMENT_SIZE,
+  validateDocumentMetadata,
+} from "@/lib/files/document-validation";
+import { validateAppointmentExtraction } from "@/lib/records/contracts";
+import {
   clearAbsoluteSessionCookie,
   serializeAbsoluteSessionCookie,
 } from "@/lib/auth/absolute-session";
@@ -17,9 +23,6 @@ import { exportPocketBaseAuthCookie } from "@/lib/pocketbase/server";
 /* export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
  */
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
-const ALLOWED_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
-
 // La respuesta del modelo se limita a este contrato temporal de extracción;
 // no representa el esquema de una colección persistida.
 const EXTRACTION_PROMPT = `
@@ -104,7 +107,7 @@ export async function POST(request: Request) {
 
     const contentLength = Number(request.headers.get("content-length") ?? 0);
 
-    if (contentLength > MAX_FILE_SIZE + 64 * 1024) {
+    if (contentLength > MAX_DOCUMENT_SIZE + 64 * 1024) {
       return jsonError("El archivo supera el límite de 10 MiB.", 413);
     }
 
@@ -116,40 +119,36 @@ export async function POST(request: Request) {
       return jsonError("Debes adjuntar un archivo en el campo 'file'.", 400);
     }
 
-    if (file.size === 0) {
+    const metadataIssue = validateDocumentMetadata(
+      file.size,
+      file.type,
+      "nombramiento",
+      file.name,
+    );
+
+    if (metadataIssue === "empty") {
       return jsonError("El archivo está vacío.", 400);
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    if (metadataIssue === "too_large") {
       return jsonError("El archivo supera el límite de 10 MiB.", 413);
     }
 
-    if (!ALLOWED_TYPES.has(file.type)) {
+    if (metadataIssue === "unsupported_type") {
       return jsonError(
         "Formato no admitido. Utiliza PDF, JPEG, PNG o WebP.",
         415,
       );
     }
 
+    if (metadataIssue === "unsupported_extension") {
+      return jsonError("La extensión del archivo no coincide con un formato admitido.", 415);
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Comprobar la firma real del archivo, no solo su extensión o MIME.
-    const isPdf = buffer.subarray(0, 5).toString("ascii") === "%PDF-";
-    const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
-    const isPng = buffer.subarray(0, 8).equals(
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    );
-    const isWebp =
-      buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
-      buffer.subarray(8, 12).toString("ascii") === "WEBP";
-
-    const signatureMatches =
-      (file.type === "application/pdf" && isPdf) ||
-      (file.type === "image/jpeg" && isJpeg) ||
-      (file.type === "image/png" && isPng) ||
-      (file.type === "image/webp" && isWebp);
-
-    if (!signatureMatches) {
+    if (!hasMatchingDocumentSignature(file.type, buffer)) {
       return jsonError(
         "El contenido del archivo no coincide con el formato declarado.",
         415,
@@ -189,80 +188,16 @@ export async function POST(request: Request) {
       return jsonError("Gemini devolvió una respuesta JSON inválida.", 502);
     }
 
-    if (
-      typeof extracted !== "object" ||
-      extracted === null ||
-      Array.isArray(extracted)
-    ) {
-      return jsonError("La respuesta de Gemini no tiene el formato esperado.", 502);
-    }
+    const validatedExtraction = validateAppointmentExtraction(extracted);
 
-    const data = extracted as Record<string, unknown>;
-
-    const stringFields = [
-      "numero_nombramiento",
-      "fecha_emision",
-      "lugar_emision",
-      "nombre_completo",
-      "cargo",
-      "departamento",
-      "dependencia",
-      "fecha_inicio",
-      "tipo_nombramiento",
-    ] as const;
-
-    const expectedFields = [...stringFields, "observaciones"];
-    const actualFields = Object.keys(data);
-
-    // Rechazar campos ausentes o adicionales antes de devolver contenido generado.
-    if (
-      expectedFields.some((field) => !Object.hasOwn(data, field)) ||
-      actualFields.some((field) => !expectedFields.includes(field as (typeof expectedFields)[number]))
-    ) {
-      return jsonError(
-        "Gemini devolvió campos ausentes o no permitidos.",
-        502,
-      );
-    }
-
-    // Cada campo de texto debe ser una cadena o null.
-    for (const field of stringFields) {
-      if (data[field] !== null && typeof data[field] !== "string") {
-        return jsonError(
-          "Gemini devolvió un campo con tipo inválido.",
-          502,
-        );
-      }
-    }
-
-    // Validar el formato de las observaciones.
-    if (
-      !Array.isArray(data.observaciones) ||
-      !data.observaciones.every((item) => typeof item === "string")
-    ) {
-      return jsonError(
-        "Las observaciones de Gemini tienen formato inválido.",
-        502,
-      );
-    }
-
-    // Normalizar la respuesta para devolver exclusivamente los campos esperados.
-    const validatedData = Object.fromEntries(
-      expectedFields.map((field) => [field, data[field]]),
-    );
-
-
-    if (
-      !Array.isArray(data.observaciones) ||
-      !data.observaciones.every((item) => typeof item === "string")
-    ) {
-      return jsonError("Las observaciones de Gemini tienen formato inválido.", 502);
+    if (!validatedExtraction) {
+      return jsonError("Gemini devolvió datos con un formato inválido.", 502);
     }
 
     return NextResponse.json({
       success: true,
       model,
-      data: validatedData,
+      data: validatedExtraction,
     });
 
       } catch {

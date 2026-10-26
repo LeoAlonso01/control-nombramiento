@@ -13,13 +13,19 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MAX_DOCUMENT_SIZE } from "@/lib/files/document-validation";
+import {
+  DECLARATION_TYPE_LABELS,
+  DECLARATION_TYPES,
+  type DeclarationType,
+} from "@/lib/records/contracts";
 
 type DeclarationData = {
   nombre_declarante: string | null;
   curp_declarante: string | null;
   lugar_declaracion: string | null;
   fecha_declaracion: string | null;
-  tipo_declaracion: "inicio" | "modificacion" | "conclusion" | null;
+  tipo_declaracion: DeclarationType | null;
   fecha_recepcion: string | null;
 };
 
@@ -32,7 +38,6 @@ type DeclarationFields = {
   fecha_recepcion: string;
 };
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 120_000;
 const SLOW_REQUEST_MS = 20_000;
 
@@ -53,12 +58,6 @@ const FIELD_DEFINITIONS = [
   { key: "tipo_declaracion", label: "Tipo de declaración", type: "select" },
   { key: "fecha_recepcion", label: "Fecha de recepción", type: "date" },
 ] as const;
-
-const DECLARATION_TYPE_LABELS = {
-  inicio: "Inicio",
-  modificacion: "Modificación",
-  conclusion: "Conclusión",
-} as const;
 
 /** Identifica los tipos admitidos por su firma binaria; el MIME del navegador no basta. */
 function detectMimeType(signature: Uint8Array): string | null {
@@ -134,7 +133,7 @@ export function CapturaDeclaracion({ onClose }: Props) {
       setError("El archivo está vacío. Selecciona un archivo válido.");
       return;
     }
-    if (candidate.size > MAX_FILE_SIZE) {
+    if (candidate.size > MAX_DOCUMENT_SIZE) {
       setError("El archivo supera el límite de 10 MiB.");
       return;
     }
@@ -359,7 +358,7 @@ export function CapturaDeclaracion({ onClose }: Props) {
                   return <div key={key}>
                     <label htmlFor={`declaration-${key}`} className="text-sm font-medium text-slate-700">{label}{missing && <span className="ml-2 text-xs font-normal text-amber-800">No identificado</span>}</label>
                     {type === "select" ? <select id={`declaration-${key}`} value={fields.tipo_declaracion} onChange={(event) => updateField("tipo_declaracion", event.target.value as DeclarationFields["tipo_declaracion"])} className={inputClass}>
-                      <option value="">No identificado</option><option value="inicio">Inicio</option><option value="modificacion">Modificación</option><option value="conclusion">Conclusión</option>
+                      <option value="">No identificado</option>{DECLARATION_TYPES.map((type) => <option key={type} value={type}>{DECLARATION_TYPE_LABELS[type]}</option>)}
                     </select> : <input id={`declaration-${key}`} type={type} value={fields[key] as string} onChange={(event) => updateField(key, event.target.value as never)} className={inputClass} />}
                   </div>;
                 })}

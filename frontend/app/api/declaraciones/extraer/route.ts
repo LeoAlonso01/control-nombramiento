@@ -4,6 +4,17 @@ import { getVerifiedSessionContext } from "@/lib/auth/server";
 import { runAfterSessionPermission } from "@/lib/auth/extraction-gate";
 import { hasPermission } from "@/lib/auth/authorization";
 import {
+  hasMatchingDocumentSignature,
+  MAX_DOCUMENT_SIZE,
+  validateDocumentMetadata,
+} from "@/lib/files/document-validation";
+import {
+  DECLARATION_TYPES,
+  isDeclarationType,
+  isValidIsoDate,
+  type DeclarationType,
+} from "@/lib/records/contracts";
+import {
   clearAbsoluteSessionCookie,
   serializeAbsoluteSessionCookie,
 } from "@/lib/auth/absolute-session";
@@ -15,13 +26,8 @@ import {
   exportPocketBaseAuthCookie,
 } from "@/lib/pocketbase/server";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
 const MAX_MULTIPART_OVERHEAD = 64 * 1024;
-const ALLOWED_TYPES = new Set([
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-]);
+const DECLARATION_TYPE_LIST = DECLARATION_TYPES.join(" | ");
 
 // Contrato esperado de la extracción, independiente del esquema de almacenamiento.
 const EXPECTED_FIELDS = [
@@ -38,15 +44,9 @@ type DeclarationData = {
   curp_declarante: string | null;
   lugar_declaracion: string | null;
   fecha_declaracion: string | null;
-  tipo_declaracion: "inicio" | "modificacion" | "conclusion" | null;
+  tipo_declaracion: DeclarationType | null;
   fecha_recepcion: string | null;
 };
-
-const ALLOWED_DECLARATION_TYPES = new Set([
-  "inicio",
-  "modificacion",
-  "conclusion",
-]);
 
 const EXTRACTION_PROMPT = `
 Analiza la constancia de recepción de declaración patrimonial adjunta.
@@ -57,7 +57,7 @@ Devuelve exclusivamente un objeto JSON válido con esta estructura exacta:
   "curp_declarante": "string o null",
   "lugar_declaracion": "string o null",
   "fecha_declaracion": "YYYY-MM-DD o null",
-  "tipo_declaracion": "inicio | modificacion | conclusion | null",
+  "tipo_declaracion": "${DECLARATION_TYPE_LIST} | null",
   "fecha_recepcion": "YYYY-MM-DD o null"
 }
 
@@ -74,8 +74,9 @@ Reglas:
   fecha de recepción, emisión de la constancia o firma.
 - "fecha_recepcion" corresponde a la recepción de la declaración. Si no aparece
   o no puede determinarse con seguridad, usa null.
-- Clasifica "tipo_declaracion" como "inicio", "modificacion" o "conclusion"
-  únicamente cuando el tipo esté indicado en el documento. En otro caso, usa null.
+- Clasifica "tipo_declaracion" exclusivamente como uno de estos valores:
+  ${DECLARATION_TYPE_LIST}. Usa un valor solo cuando el tipo esté indicado en
+  el documento. En otro caso, usa null.
 - Todas las fechas deben ser fechas válidas en formato ISO YYYY-MM-DD. Si una
   fecha es ambigua, ilegible o no se puede convertir con seguridad, usa null.
 - Para cualquier dato ausente, ilegible o ambiguo, usa null.
@@ -87,49 +88,6 @@ Reglas:
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
-}
-
-/** Confirma que los bytes iniciales correspondan al MIME declarado por el formulario. */
-function hasValidSignature(buffer: Buffer, mimeType: string): boolean {
-  if (mimeType === "application/pdf") {
-    return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
-  }
-
-  if (mimeType === "image/jpeg") {
-    return (
-      buffer.length >= 3 &&
-      buffer[0] === 0xff &&
-      buffer[1] === 0xd8 &&
-      buffer[2] === 0xff
-    );
-  }
-
-  if (mimeType === "image/png") {
-    return (
-      buffer.length >= 8 &&
-      buffer.subarray(0, 8).equals(
-        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      )
-    );
-  }
-
-  return false;
-}
-
-/** Comprueba formato y calendario real; el patrón por sí solo aceptaría fechas imposibles. */
-function isValidIsoDate(value: unknown): value is string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
 }
 
 /** Valida forma, campos y tipos de la respuesta del modelo antes de exponerla al cliente. */
@@ -182,8 +140,7 @@ function validateDeclarationData(value: unknown): DeclarationData | null {
 
   if (
     data.tipo_declaracion !== null &&
-    (typeof data.tipo_declaracion !== "string" ||
-      !ALLOWED_DECLARATION_TYPES.has(data.tipo_declaracion))
+    !isDeclarationType(data.tipo_declaracion)
   ) {
     return null;
   }
@@ -231,7 +188,7 @@ export async function POST(request: Request) {
     if (
       contentLength !== null &&
       Number.isFinite(contentLength) &&
-      contentLength > MAX_FILE_SIZE + MAX_MULTIPART_OVERHEAD
+      contentLength > MAX_DOCUMENT_SIZE + MAX_MULTIPART_OVERHEAD
     ) {
       return jsonError("El archivo supera el límite de 10 MiB.", 413);
     }
@@ -244,21 +201,32 @@ export async function POST(request: Request) {
       return jsonError("Debes adjuntar un archivo en el campo 'file'.", 400);
     }
 
-    if (file.size === 0) {
+    const metadataIssue = validateDocumentMetadata(
+      file.size,
+      file.type,
+      "declaracion",
+      file.name,
+    );
+
+    if (metadataIssue === "empty") {
       return jsonError("El archivo está vacío.", 400);
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    if (metadataIssue === "too_large") {
       return jsonError("El archivo supera el límite de 10 MiB.", 413);
     }
 
-    if (!ALLOWED_TYPES.has(file.type)) {
+    if (metadataIssue === "unsupported_type") {
       return jsonError("Formato no admitido. Utiliza PDF, JPEG o PNG.", 415);
+    }
+
+    if (metadataIssue === "unsupported_extension") {
+      return jsonError("La extensión del archivo no coincide con un formato admitido.", 415);
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    if (!hasValidSignature(buffer, file.type)) {
+    if (!hasMatchingDocumentSignature(file.type, buffer)) {
       return jsonError(
         "El contenido del archivo no coincide con el formato declarado.",
         415,
