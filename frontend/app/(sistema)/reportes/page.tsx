@@ -1,0 +1,18 @@
+import { BarChart3, FileOutput } from "lucide-react";
+import { DataState } from "@/components/data-state";
+
+const unavailable = "Sin datos disponibles";
+
+export default function ReportesPage() {
+  return (
+    <>
+      <header className="border-b border-slate-200 bg-white px-5 py-6 sm:px-8 lg:px-10"><div className="mx-auto max-w-[1440px]"><p className="mb-1 text-xs font-medium text-slate-500">Módulos / Reportes</p><h1 className="text-2xl font-semibold tracking-tight">Reportes</h1><p className="mt-1 text-sm text-slate-600">Indicadores y reportes de nombramientos y declaraciones.</p></div></header>
+      <div className="mx-auto max-w-[1440px] space-y-6 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
+        <section aria-labelledby="period-title" className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/80 sm:p-6"><h2 id="period-title" className="text-base font-semibold">Periodo</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-slate-700">Desde<input type="date" disabled aria-describedby="report-data-note" className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-slate-500 disabled:cursor-not-allowed" /></label><label className="text-sm font-medium text-slate-700">Hasta<input type="date" disabled aria-describedby="report-data-note" className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-slate-500 disabled:cursor-not-allowed" /></label></div><p id="report-data-note" className="mt-3 text-sm text-slate-500">Los filtros estarán disponibles cuando se conecte la fuente de datos.</p></section>
+        <section aria-labelledby="totals-title"><h2 id="totals-title" className="mb-3 text-base font-semibold">Indicadores</h2><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{["Nombramientos", "Declaraciones", "Pendientes", "Concluidos"].map((title) => <article key={title} className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/80"><p className="text-sm text-slate-500">{title}</p><p className="mt-3 text-lg font-semibold text-slate-400">{unavailable}</p></article>)}</div></section>
+        <section aria-labelledby="charts-title"><h2 id="charts-title" className="mb-3 text-base font-semibold">Análisis</h2><div className="grid gap-4 xl:grid-cols-2"><article className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/80"><h3 className="flex items-center gap-2 font-semibold"><BarChart3 aria-hidden="true" className="size-4 text-[#a82732]" />Actividad por periodo</h3><DataState state="empty" title="Datos no disponibles" description="La gráfica estará disponible cuando exista una fuente de datos conectada." /></article><article className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/80"><h3 className="flex items-center gap-2 font-semibold"><BarChart3 aria-hidden="true" className="size-4 text-[#a82732]" />Distribución por tipo y estado</h3><DataState state="empty" title="Datos no disponibles" description="La gráfica estará disponible cuando exista una fuente de datos conectada." /></article></div></section>
+        <section aria-labelledby="generation-title" className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/80 sm:p-6"><h2 id="generation-title" className="flex items-center gap-2 text-base font-semibold"><FileOutput aria-hidden="true" className="size-4 text-[#a82732]" />Generación de reportes</h2><p className="mt-2 text-sm text-slate-600">La generación de archivos estará disponible cuando exista una fuente de datos y se implemente el proceso de exportación.</p><button type="button" disabled className="mt-4 h-10 cursor-not-allowed rounded-md bg-slate-200 px-4 text-sm font-medium text-slate-500">Generación no disponible</button></section>
+      </div>
+    </>
+  );
+}

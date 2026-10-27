@@ -1,7 +1,7 @@
 import "server-only";
 
 import PocketBase, { getTokenPayload, type RecordModel } from "pocketbase";
-import { parsePocketBaseUrl } from "@/lib/pocketbase/url";
+import { resolvePocketBaseBaseUrl } from "@/lib/pocketbase/url";
 
 export const POCKETBASE_AUTH_COOKIE_NAME = "pb_auth";
 
@@ -19,13 +19,7 @@ export class PocketBaseConfigurationError extends Error {
 export function createPocketBaseServer(
   cookieHeader?: string | null,
 ): PocketBase {
-  const configuredUrl = process.env.POCKETBASE_URL?.trim();
-
-  if (!configuredUrl) {
-    throw new PocketBaseConfigurationError();
-  }
-
-  const baseUrl = parsePocketBaseUrl(configuredUrl);
+  const baseUrl = resolvePocketBaseBaseUrl(process.env.POCKETBASE_URL);
 
   if (!baseUrl) {
     throw new PocketBaseConfigurationError();
@@ -45,7 +39,7 @@ export function exportPocketBaseAuthCookie(
   pb: PocketBase,
   absoluteExpiresAt?: number,
 ): string {
-  const record = pb.authStore.record as RecordModel | null;
+  const record = pb.authStore.model as RecordModel | null;
 
   if (record?.collectionName === "users") {
     pb.authStore.save(pb.authStore.token, {

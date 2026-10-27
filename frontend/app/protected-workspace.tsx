@@ -1,12 +1,11 @@
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth/server";
 import { ABSOLUTE_SESSION_COOKIE_NAME } from "@/lib/auth/absolute-session";
 import { POCKETBASE_AUTH_COOKIE_NAME } from "@/lib/pocketbase/server";
-import { resolveDashboardAccess } from "@/lib/auth/dashboard-access";
-import DashboardClient from "@/app/dashboard-client";
+import { AppShell } from "@/app/app-shell";
 
 function SessionUnavailable() {
   return (
@@ -19,48 +18,31 @@ function SessionUnavailable() {
   );
 }
 
-/** Control de servidor para la ruta raíz; el cliente no decide si la sesión es válida. */
-async function ProtectedDashboard() {
-  // La página depende de cookies de solicitud; se fuerza el tramo dinámico antes de leerlas.
+async function ProtectedContent({ children }: { children: ReactNode }) {
   await connection();
-
   const cookieStore = await cookies();
-  const authCookies = [
-    POCKETBASE_AUTH_COOKIE_NAME,
-    ABSOLUTE_SESSION_COOKIE_NAME,
-  ]
+  const authCookies = [POCKETBASE_AUTH_COOKIE_NAME, ABSOLUTE_SESSION_COOKIE_NAME]
     .map((name) => {
       const cookie = cookieStore.get(name);
       return cookie ? `${name}=${cookie.value}` : null;
     })
     .filter((cookie): cookie is string => cookie !== null)
     .join("; ");
-
-  // La verificación remota puede fallar por indisponibilidad; ese estado se muestra aparte
-  // y no se transforma en una sesión anónima ni en acceso al dashboard.
-  const access = await resolveDashboardAccess(() =>
-    getServerSession(authCookies || null),
-  );
-
-  if (access === "unavailable") return <SessionUnavailable />;
-
-  if (access === "unauthenticated") {
-    redirect("/login");
+  let session: Awaited<ReturnType<typeof getServerSession>>;
+  try {
+    session = await getServerSession(authCookies || null);
+  } catch {
+    return <SessionUnavailable />;
   }
+  if (!session.authenticated) redirect("/login");
 
-  return <DashboardClient />;
+  return <AppShell role={session.user.role}>{children}</AppShell>;
 }
 
-export default function Home() {
+export function ProtectedWorkspace({ children }: { children: ReactNode }) {
   return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-screen items-center justify-center bg-[#f7f8fa] text-sm text-slate-600">
-          Verificando sesión…
-        </main>
-      }
-    >
-      <ProtectedDashboard />
+    <Suspense fallback={<main className="flex min-h-screen items-center justify-center bg-[#f7f8fa] text-sm text-slate-600">Verificando sesión…</main>}>
+      <ProtectedContent>{children}</ProtectedContent>
     </Suspense>
   );
 }
