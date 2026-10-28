@@ -62,19 +62,22 @@ test("authorization matrix defines every role, resource, and action combination"
   }
 });
 
-test("authorization policy grants only the confirmed role permissions", () => {
+test("authorization policy grants the approved operations and denies physical deletion", () => {
   for (const resource of AUTHORIZATION_RESOURCES) {
     for (const action of AUTHORIZATION_ACTIONS) {
       assert.equal(
         hasPermission("admin", resource, action),
-        resource !== "permissions" || action === "manage",
+        resource === "permissions"
+          ? action === "manage"
+          : ["nombramientos", "declaraciones"].includes(resource) &&
+            ["read", "create", "correct", "confirm", "reject", "read_document", "soft_delete", "restore"].includes(action),
         `admin ${action} ${resource}`,
       );
 
       assert.equal(
         hasPermission("capturista", resource, action),
         ["nombramientos", "declaraciones"].includes(resource) &&
-          ["read", "create", "update"].includes(action),
+          ["read", "create", "correct", "read_document"].includes(action),
         `capturista ${action} ${resource}`,
       );
 
@@ -94,9 +97,10 @@ test("unknown roles, resources, and actions are denied by default", () => {
   assert.equal(hasPermission("admin", "nombramientos", "unknown"), false);
 });
 
-test("configured administrator ID takes precedence over any assigned role", () => {
-  assert.equal(resolveAppRole("admin-id", " admin-id ", "auditor"), "admin");
-  assert.equal(resolveAppRole("admin-id", "admin-id", null), "admin");
+test("configured administrator ID is accepted only when the verified role is admin", () => {
+  assert.equal(resolveAppRole("admin-id", " admin-id ", "admin"), "admin");
+  assert.equal(resolveAppRole("admin-id", "admin-id", "auditor"), null);
+  assert.equal(resolveAppRole("admin-id", "admin-id", null), null);
   assert.equal(resolveAppRole("other-id", "admin-id", "capturista"), "capturista");
   assert.equal(resolveAppRole("other-id", "admin-id"), null);
   assert.equal(resolveAppRole("other-id", undefined, "auditor"), "auditor");
@@ -109,6 +113,15 @@ test("role resolution accepts only the exact supported runtime strings", () => {
 
   for (const role of [undefined, null, "", "Admin", "unknown", [], {}, 1, true]) {
     assert.equal(resolveAppRole("other-id", undefined, role), null);
+  }
+});
+
+test("ordinary application roles cannot manage users or hard-delete records", () => {
+  for (const role of APP_ROLES) {
+    assert.equal(hasPermission(role, "users", "read"), false);
+    assert.equal(hasPermission(role, "users", "manage"), false);
+    assert.equal(hasPermission(role, "nombramientos", "hard_delete"), false);
+    assert.equal(hasPermission(role, "declaraciones", "hard_delete"), false);
   }
 });
 

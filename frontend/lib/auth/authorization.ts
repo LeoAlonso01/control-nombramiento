@@ -12,8 +12,13 @@ export type AuthorizationResource = (typeof AUTHORIZATION_RESOURCES)[number];
 export const AUTHORIZATION_ACTIONS = [
   "read",
   "create",
-  "update",
-  "delete",
+  "correct",
+  "confirm",
+  "reject",
+  "read_document",
+  "soft_delete",
+  "restore",
+  "hard_delete",
   "manage",
 ] as const;
 export type AuthorizationAction = (typeof AUTHORIZATION_ACTIONS)[number];
@@ -23,11 +28,12 @@ type PermissionMatrix = Record<
   Record<AuthorizationResource, readonly AuthorizationAction[]>
 >;
 
-const ALL_ACTIONS: readonly AuthorizationAction[] = AUTHORIZATION_ACTIONS;
+const ADMIN_RECORD_ACTIONS: readonly AuthorizationAction[] = [
+  "read", "create", "correct", "confirm", "reject", "read_document",
+  "soft_delete", "restore",
+];
 const CAPTURE_ACTIONS: readonly AuthorizationAction[] = [
-  "read",
-  "create",
-  "update",
+  "read", "create", "correct", "read_document",
 ];
 const READ_ONLY_ACTIONS: readonly AuthorizationAction[] = ["read"];
 const NO_ACTIONS: readonly AuthorizationAction[] = [];
@@ -38,9 +44,10 @@ const NO_ACTIONS: readonly AuthorizationAction[] = [];
  */
 export const AUTHORIZATION_POLICY: PermissionMatrix = {
   admin: {
-    users: ALL_ACTIONS,
-    nombramientos: ALL_ACTIONS,
-    declaraciones: ALL_ACTIONS,
+    // No hay endpoints de administración de usuarios en esta fase.
+    users: NO_ACTIONS,
+    nombramientos: ADMIN_RECORD_ACTIONS,
+    declaraciones: ADMIN_RECORD_ACTIONS,
     permissions: ["manage"],
   },
   capturista: {
@@ -79,7 +86,9 @@ export function resolveAppRole(
   assignedRole?: unknown,
 ): AppRole | null {
   const adminId = configuredAdminId?.trim();
-  if (adminId && verifiedUserId === adminId) return "admin";
+  if (adminId && verifiedUserId === adminId) {
+    return assignedRole === "admin" ? "admin" : null;
+  }
   return typeof assignedRole === "string" && APP_ROLES.includes(assignedRole as AppRole)
     ? (assignedRole as AppRole)
     : null;
