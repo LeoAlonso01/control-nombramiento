@@ -36,7 +36,7 @@ async function ProtectedContent({ children }: { children: ReactNode }) {
   }
   if (!session.authenticated) redirect("/login");
 
-  return <AppShell role={session.user.role}>{children}</AppShell>;
+  return <AppShell role={session.user.role} user={session.user}>{children}</AppShell>;
 }
 
 export function ProtectedWorkspace({ children }: { children: ReactNode }) {

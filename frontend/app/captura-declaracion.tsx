@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -115,15 +115,113 @@ export function CapturaDeclaracion({ onClose }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const requestLock = useRef(false);
   const abortController = useRef<AbortController | null>(null);
+  const redirectTimer = useRef<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSlow, setIsSlow] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState<{ kind: "info" | "success" | "error"; message: string } | null>(null);
   const [fields, setFields] = useState<DeclarationFields>(EMPTY_FIELDS);
   const [stage, setStage] = useState<"upload" | "review" | "admit" | "reject" | "done">("upload");
   const [decision, setDecision] = useState<"admitted" | "rejected">("admitted");
   const [operationId, setOperationId] = useState("");
+
+  function scheduleRedirectToList(delayMs = 1400) {
+    if (redirectTimer.current !== null) {
+      window.clearTimeout(redirectTimer.current);
+      redirectTimer.current = null;
+    }
+    redirectTimer.current = window.setTimeout(() => onClose(), delayMs);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current !== null) {
+        window.clearTimeout(redirectTimer.current);
+        redirectTimer.current = null;
+      }
+    };
+  }, []);
+  function readApiErrorMessage(payload: unknown, fallback: string): string {
+    if (typeof payload !== "object" || payload === null) return fallback;
+    if (!("error" in payload)) return fallback;
+    const value = (payload as Record<string, unknown>).error;
+    return typeof value === "string" && value.trim().length ? value : fallback;
+  }
+
+  function isCreatedDeclaracionResponse(value: unknown): value is { id: string } {
+    return typeof value === "object" && value !== null &&
+      "id" in value && typeof (value as Record<string, unknown>).id === "string";
+  }
+
+  async function persistDeclaracionToPocketBase(): Promise<string> {
+    if (!file) {
+      throw new Error("No hay documento seleccionado.");
+    }
+
+    setNotice({ kind: "info", message: "Guardando declaración…" });
+
+    const form = new FormData();
+    form.append("documento", file);
+
+    const nombre = fields.nombre_declarante.trim();
+    if (nombre) form.append("nombre_declarante", nombre);
+
+    const curp = fields.curp_declarante.trim();
+    if (curp) form.append("curp_declarante", curp);
+
+    const lugar = fields.lugar_declaracion.trim();
+    if (lugar) form.append("lugar_declaracion", lugar);
+
+    const fechaDeclaracion = fields.fecha_declaracion.trim();
+    if (fechaDeclaracion) form.append("fecha", fechaDeclaracion);
+
+    const tipo = fields.tipo_declaracion.trim();
+    if (tipo) form.append("tipo_declaracion", tipo);
+
+    const fechaRecepcion = fields.fecha_recepcion.trim();
+    if (fechaRecepcion) form.append("fecha_recepcion", fechaRecepcion);
+
+    form.append(
+      "datos_ocr",
+      JSON.stringify({
+        captura: {
+          nombre_declarante: nombre || null,
+          curp_declarante: curp || null,
+          lugar_declaracion: lugar || null,
+          fecha_declaracion: fechaDeclaracion || null,
+          tipo_declaracion: tipo || null,
+          fecha_recepcion: fechaRecepcion || null,
+        },
+        origen: { nombreArchivo: file.name, tipo: file.type, tamano: file.size },
+      }),
+    );
+
+    const response = await fetch("/api/declaraciones", {
+      method: "POST",
+      body: form,
+      cache: "no-store",
+    });
+
+    const payload: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setNotice({ kind: "error", message: "No fue posible guardar la declaración." });
+      throw new Error(
+        readApiErrorMessage(payload, "No fue posible guardar la declaración. Intenta de nuevo."),
+      );
+    }
+
+    if (!isCreatedDeclaracionResponse(payload)) {
+      setNotice({ kind: "error", message: "La respuesta del servicio no tiene el formato esperado." });
+      throw new Error("La respuesta del servicio no tiene el formato esperado.");
+    }
+
+    setNotice({ kind: "success", message: "Declaración guardada correctamente." });
+    return payload.id;
+  }
 
   /** Valida tamaño y firma localmente para dar feedback temprano; el servidor valida de nuevo. */
   async function chooseFile(candidate?: File) {
@@ -199,6 +297,7 @@ export function CapturaDeclaracion({ onClose }: Props) {
       const result: unknown = await response.json().catch(() => null);
 
       if (!response.ok) {
+      setNotice({ kind: "error", message: "No fue posible guardar la declaración." });
         const message = isRecord(result) && isRecord(result.error) &&
           typeof result.error.message === "string"
           ? result.error.message
@@ -281,8 +380,36 @@ export function CapturaDeclaracion({ onClose }: Props) {
             </Button>
             <div><p className="text-xs text-slate-500">Declaraciones / Captura</p><h1 id="declaration-title" className="text-lg font-semibold">Registrar declaración</h1></div>
           </div>
+
           {stage !== "done" && <span className="hidden text-xs text-slate-500 sm:block">Extracción asistida · revisión manual requerida</span>}
         </div>
+
+        {notice && (
+          <div className="mx-auto mt-3 max-w-5xl">
+            <section
+              role={notice.kind === "error" ? "alert" : undefined}
+              className={`rounded-md px-4 py-3 text-sm ring-1 ${
+                notice.kind === "success"
+                  ? "bg-emerald-50 text-emerald-900 ring-emerald-200"
+                  : notice.kind === "error"
+                    ? "bg-red-50 text-red-900 ring-red-200"
+                    : "bg-slate-50 text-slate-800 ring-slate-200"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 flex-1">{notice.message}</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setNotice(null)}
+                  className="h-7 px-2 text-xs"
+                >
+                  Cerrar
+                </Button>
+              </div>
+            </section>
+          </div>
+        )}
       </header>
 
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-8 sm:py-8">
@@ -314,17 +441,21 @@ export function CapturaDeclaracion({ onClose }: Props) {
                   <Button type="button" variant="outline" disabled={isExtracting} onClick={() => inputRef.current?.click()} className="mt-4 h-10 rounded-md px-4">Seleccionar archivo</Button>
                   <p className="mt-4 text-xs text-slate-500">PDF, JPEG/JPG o PNG · máximo 10 MiB</p>
                 </div>
+
               ) : (
                 <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white text-[#a82732] ring-1 ring-slate-200"><FileText aria-hidden="true" className="size-5" /></span>
                     <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-900">{file.name}</p><p className="mt-1 text-xs text-slate-500">{file.type.replace("application/", "").replace("image/", "").toUpperCase()} · {formatBytes(file.size)}</p></div>
                   </div>
+
                   {!isExtracting && <div className="flex flex-col gap-2 sm:flex-row">
                     <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} className="h-9 rounded-md">Sustituir</Button>
                     <Button type="button" variant="outline" onClick={() => { setFile(null); setError(""); }} className="h-9 rounded-md text-slate-700"><X aria-hidden="true" className="size-4" /> Quitar</Button>
-                  </div>}
+                  </div>
+}
                 </div>
+
               )}
 
               {error && <div role="alert" className="mt-4 flex gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800"><AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><p>{error}</p></div>}
@@ -335,12 +466,15 @@ export function CapturaDeclaracion({ onClose }: Props) {
                   <div className="min-w-0 flex-1"><p className="font-medium text-slate-900">Analizando la constancia con Gemini…</p><p className="mt-1 text-sm text-slate-600">Estamos identificando los datos de la declaración. Esto puede tardar unos segundos.</p><p className="mt-2 truncate text-xs text-slate-500">Documento: {file?.name ?? "Documento seleccionado"}</p>{isSlow && <p className="mt-2 text-xs text-amber-800">El análisis está tardando más de lo habitual. Puedes cancelar y volver a intentarlo.</p>}</div>
                   <Button type="button" variant="outline" onClick={cancelExtraction} className="h-9 shrink-0 rounded-md">Cancelar análisis</Button>
                 </div>
-              </div>}
+
+              </div>
+}
 
               <div className="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-5 sm:flex-row">
                 <Button type="button" variant="outline" disabled={isExtracting} onClick={onClose} className="h-10 rounded-md">Cancelar</Button>
                 <Button type="button" disabled={!file || isExtracting} onClick={() => void extract()} className="h-10 rounded-md bg-[#a82732] px-4 text-white hover:bg-[#8e202a]">{isExtracting ? "Analizando…" : "Extraer datos"}</Button>
               </div>
+
             </CardContent>
           </Card>
         </>}
@@ -360,25 +494,56 @@ export function CapturaDeclaracion({ onClose }: Props) {
                     {type === "select" ? <select id={`declaration-${key}`} value={fields.tipo_declaracion} onChange={(event) => updateField("tipo_declaracion", event.target.value as DeclarationFields["tipo_declaracion"])} className={inputClass}>
                       <option value="">No identificado</option>{DECLARATION_TYPES.map((type) => <option key={type} value={type}>{DECLARATION_TYPE_LABELS[type]}</option>)}
                     </select> : <input id={`declaration-${key}`} type={type} value={fields[key] as string} onChange={(event) => updateField(key, event.target.value as never)} className={inputClass} />}
-                  </div>;
+                  </div>
+;
                 })}
               </div>
+
               <div className="mt-6 flex flex-col-reverse justify-between gap-2 border-t border-slate-100 pt-5 sm:flex-row">
                 <div className="flex flex-col gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => { setStage("upload"); setError(""); }} className="h-10 rounded-md">Volver al documento</Button><Button type="button" variant="outline" onClick={() => setStage("reject")} className="h-10 rounded-md text-slate-700">Rechazar declaración</Button></div>
                 <Button type="button" onClick={() => setStage("admit")} className="h-10 rounded-md bg-[#a82732] px-4 text-white hover:bg-[#8e202a]">Admitir declaración</Button>
               </div>
+
             </CardContent>
           </Card>
         </>}
 
         {/* La admisión/rechazo es una simulación local; aquí no se escribe en PocketBase. */}
         {(stage === "admit" || stage === "reject") && <Card className="mx-auto max-w-3xl rounded-xl border-0 bg-white py-0 shadow-sm ring-1 ring-slate-200/80">
-          <CardHeader className="border-b border-slate-100 px-5 py-5 sm:px-6"><CardTitle className="text-lg">{stage === "admit" ? "Confirmar admisión" : "Confirmar rechazo"}</CardTitle><p className="text-sm text-slate-600">{stage === "admit" ? "Revisa el resumen antes de confirmar. El guardado será simulado y no valida la autenticidad ni el cumplimiento legal del documento." : "Confirma el rechazo de esta captura. No se guardará información."}</p></CardHeader>
-          <CardContent className="p-5 sm:p-6"><dl className="grid gap-3 sm:grid-cols-2">{reviewedEntries.map(([label, value]) => <div key={label} className="rounded-md bg-slate-50 p-3"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-slate-800">{value}</dd></div>)}</dl><div className="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-5 sm:flex-row"><Button type="button" variant="outline" onClick={() => setStage("review")} className="h-10 rounded-md">Volver a revisar</Button><Button type="button" onClick={() => { setDecision(stage === "admit" ? "admitted" : "rejected"); if (stage === "admit") setOperationId(`SIM-${globalThis.crypto?.randomUUID?.().slice(0, 8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`); setStage("done"); }} className={`h-10 rounded-md px-4 text-white ${stage === "admit" ? "bg-[#a82732] hover:bg-[#8e202a]" : "bg-slate-700 hover:bg-slate-800"}`}>{stage === "admit" ? "Confirmar admisión" : "Sí, rechazar"}</Button></div></CardContent>
+          <CardHeader className="border-b border-slate-100 px-5 py-5 sm:px-6"><CardTitle className="text-lg">{stage === "admit" ? "Confirmar admisión" : "Confirmar rechazo"}</CardTitle><p className="text-sm text-slate-600">{stage === "admit" ? "Revisa el resumen antes de confirmar. Al confirmar se guardará el registro en la plataforma." : "Confirma el rechazo de esta captura. No se guardará información."}</p></CardHeader>
+          <CardContent className="p-5 sm:p-6"><dl className="grid gap-3 sm:grid-cols-2">{reviewedEntries.map(([label, value]) => <div key={label} className="rounded-md bg-slate-50 p-3"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-slate-800">{value}</dd></div>)}</dl><div className="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-5 sm:flex-row"><Button type="button" variant="outline" onClick={() => setStage("review")} className="h-10 rounded-md">Volver a revisar</Button><Button type="button" onClick={async () => {
+  if (saving) return;
+  if (stage !== "admit") {
+    setDecision("rejected");
+    setStage("done");
+    return;
+  }
+
+  setSaving(true);
+  setError("");
+
+  try {
+    const recordId = await persistDeclaracionToPocketBase();
+    setDecision("admitted");
+    setOperationId(recordId);
+    setStage("done");
+    scheduleRedirectToList();
+  } catch (cause) {
+    setError(
+      cause instanceof TypeError
+        ? "No se pudo conectar con el servicio. Revisa tu conexión e inténtalo de nuevo."
+        : cause instanceof Error
+          ? cause.message
+          : "Ocurrió un error al guardar la declaración.",
+    );
+  } finally {
+    setSaving(false);
+  }
+}} className={`h-10 rounded-md px-4 text-white ${stage === "admit" ? "bg-[#a82732] hover:bg-[#8e202a]" : "bg-slate-700 hover:bg-slate-800"}`}>{stage === "admit" ? "Confirmar admisión" : "Sí, rechazar"}</Button></div></CardContent>
         </Card>}
 
         {stage === "done" && <Card className="mx-auto max-w-3xl rounded-xl border-0 bg-white py-0 shadow-sm ring-1 ring-slate-200/80">
-          <CardHeader className="items-center border-b border-slate-100 px-5 py-7 text-center"><span className={`mb-2 flex size-12 items-center justify-center rounded-full ${decision === "admitted" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>{decision === "admitted" ? <CheckCircle2 aria-hidden="true" className="size-6" /> : <X aria-hidden="true" className="size-6" />}</span><CardTitle className="text-xl">{decision === "admitted" ? "Admisión confirmada" : "Declaración rechazada"}</CardTitle><p className="max-w-xl text-sm text-slate-600">{decision === "admitted" ? <>Guardado simulado. El registro no se almacenó permanentemente y existe solo en el estado de esta pantalla. Identificador de operación: <strong>{operationId}</strong>.</> : "El flujo se marcó como rechazado. No se guardaron datos."}</p></CardHeader>
+          <CardHeader className="items-center border-b border-slate-100 px-5 py-7 text-center"><span className={`mb-2 flex size-12 items-center justify-center rounded-full ${decision === "admitted" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>{decision === "admitted" ? <CheckCircle2 aria-hidden="true" className="size-6" /> : <X aria-hidden="true" className="size-6" />}</span><CardTitle className="text-xl">{decision === "admitted" ? "Admisión confirmada" : "Declaración rechazada"}</CardTitle><p className="max-w-xl text-sm text-slate-600">{decision === "admitted" ? <>Registro guardado. Identificador de operación: <strong>{operationId}</strong>.</> : "El flujo se marcó como rechazado. No se guardaron datos."}</p></CardHeader>
           <CardContent className="p-5 sm:p-6"><h3 className="mb-3 font-semibold">{decision === "admitted" ? "Resumen de los datos aceptados" : "Resumen revisado"}</h3><dl className="grid gap-3 sm:grid-cols-2">{reviewedEntries.map(([label, value]) => <div key={label} className="rounded-md bg-slate-50 p-3"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-slate-800">{value}</dd></div>)}</dl><div className="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-5 sm:flex-row"><Button type="button" variant="outline" onClick={onClose} className="h-10 rounded-md">Volver al panel</Button><Button type="button" onClick={startNew} className="h-10 rounded-md bg-[#a82732] px-4 text-white hover:bg-[#8e202a]"><RotateCcw aria-hidden="true" className="size-4" /> Nueva captura</Button></div></CardContent>
         </Card>}
       </main>

@@ -16,6 +16,10 @@ import { resolveAppRole, type AppRole } from "@/lib/auth/authorization";
 type PocketBaseUserRecord = RecordModel & {
   activo?: unknown;
   rol?: unknown;
+  CURP?: unknown;
+  nombre?: unknown;
+  apellido_paterno?: unknown;
+  apellido_materno?: unknown;
 };
 
 export type AuthenticatedSession = {
@@ -24,6 +28,10 @@ export type AuthenticatedSession = {
     id: string;
     isAdmin: boolean;
     role: AppRole | null;
+    profile?: {
+      displayName: string | null;
+      curpMasked: string | null;
+    };
   };
 };
 
@@ -53,6 +61,28 @@ export class SessionVerificationError extends Error {
     super("The session could not be verified.");
     this.name = "SessionVerificationError";
   }
+}
+
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function buildDisplayName(record: PocketBaseUserRecord): string | null {
+  const parts = [
+    text(record.nombre),
+    text(record.apellido_paterno),
+    text(record.apellido_materno),
+  ].filter((value): value is string => value !== null);
+  return parts.length ? parts.join(" ") : null;
+}
+
+function maskCurp(value: string | null): string | null {
+  if (!value) return null;
+  const compact = value.replaceAll(" ", "");
+  if (compact.length < 6) return null;
+  const prefix = compact.slice(0, 4);
+  const suffix = compact.slice(-2);
+  return `${prefix}${"*".repeat(Math.max(0, compact.length - 6))}${suffix}`;
 }
 
 /**
@@ -127,6 +157,10 @@ export async function getVerifiedSessionContext(
       id: record.id,
       role,
       isAdmin: role === "admin",
+      profile: {
+        displayName: buildDisplayName(record),
+        curpMasked: maskCurp(text(record.CURP)),
+      },
     },
   };
 

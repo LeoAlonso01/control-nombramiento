@@ -4,6 +4,8 @@ type RecordData = Record<string, unknown>;
 
 type NombramientoIdentity = {
   id: string;
+  created: string | null;
+  updated: string | null;
   uuid: string | null;
   numero_nombramiento: string | null;
   nombre_funcionario: string | null;
@@ -33,6 +35,8 @@ export type NombramientoDTO =
 
 type DeclaracionIdentity = {
   id: string;
+  created: string | null;
+  updated: string | null;
   uuid: string | null;
   nombre_declarante: string | null;
   fecha: string | null;
@@ -76,6 +80,8 @@ export function projectNombramiento(
 ): NombramientoDTO {
   const identity: NombramientoIdentity = {
     id: text(source, "id") ?? "",
+    created: text(source, "created"),
+    updated: text(source, "updated"),
     uuid: text(source, "uuid"),
     numero_nombramiento: text(source, "numero_nombramiento"),
     nombre_funcionario: text(source, "nombre_funcionario"),
@@ -99,6 +105,8 @@ export function projectDeclaracion(
 ): DeclaracionDTO {
   const identity: DeclaracionIdentity = {
     id: text(source, "id") ?? "",
+    created: text(source, "created"),
+    updated: text(source, "updated"),
     uuid: text(source, "uuid"),
     nombre_declarante: text(source, "nombre_declarante"),
     fecha: text(source, "fecha"),

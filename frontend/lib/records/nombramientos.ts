@@ -3,7 +3,7 @@ import { projectNombramiento, type NombramientoDTO } from "./projections.ts";
 
 /**
  * Contrato provisional basado en frontend/docs/pocketbase/pb_schema_current.json.
- * Ningún campo de nombramientos se ha contrastado aún con la instancia activa.
+ * NingÃºn campo de nombramientos se ha contrastado aÃºn con la instancia activa.
  */
 export const NOMBRAMIENTO_FIELDS_PENDING_CONFIRMATION = [
   "uuid", "nombre_funcionario", "cargo", "numero_nombramiento",
@@ -35,7 +35,7 @@ const PERIOD_PATTERN = /^[\p{L}\p{N} ._/-]{1,40}$/u;
 
 export class NombramientoQueryError extends Error {
   constructor() {
-    super("Los parámetros de consulta no son válidos.");
+    super("Los parÃ¡metros de consulta no son vÃ¡lidos.");
     this.name = "NombramientoQueryError";
   }
 }
@@ -83,13 +83,13 @@ function escapeFilter(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
-/** La lista siempre excluye borrado lógico y solo selecciona datos de tabla. */
+/** La lista siempre excluye borrado lÃ³gico y solo selecciona datos de tabla. */
 export async function listNombramientos(
   client: PocketBaseListClient,
   query: ReturnType<typeof parseNombramientoQuery>,
   role: AppRole,
 ): Promise<NombramientoPage> {
-  const clauses = ['delete_at = ""'];
+  const clauses = ['(delete_at = "" || delete_at = null)'];
   if (query.filters.estado_proceso) {
     clauses.push(`estado_proceso = "${escapeFilter(query.filters.estado_proceso)}"`);
   }

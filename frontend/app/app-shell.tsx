@@ -3,7 +3,7 @@
 import { createContext, useContext, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FileCheck2, FileText, LayoutDashboard, LoaderCircle, LogOut, UsersRound } from "lucide-react";
+import { FileCheck2, FileText, LayoutDashboard, LoaderCircle, LogOut, UserRound, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { hasPermission, type AppRole } from "@/lib/auth/authorization";
 import { createLogoutRequest, isLogoutSuccessful, LOGOUT_ENDPOINT } from "@/lib/auth/logout-contract";
@@ -21,7 +21,22 @@ export function useAppRole() {
   return useContext(RoleContext);
 }
 
-export function AppShell({ children, role }: { children: ReactNode; role: AppRole | null }) {
+type SessionUser = {
+  id: string;
+  isAdmin: boolean;
+  role: AppRole | null;
+  profile?: {
+    displayName: string | null;
+    curpMasked: string | null;
+  };
+};
+
+function formatUserId(value: string): string {
+  if (value.length <= 12) return value;
+  return value.slice(0, 8) + "…" + value.slice(-4);
+}
+
+export function AppShell({ children, role, user }: { children: ReactNode; role: AppRole | null; user?: SessionUser }) {
   const router = useRouter();
   const pathname = usePathname();
   const logoutSubmittingRef = useRef(false);
@@ -76,6 +91,18 @@ export function AppShell({ children, role }: { children: ReactNode; role: AppRol
           </Button>
           {logoutError && <p role="alert" aria-live="polite" className="mt-2 px-2 text-xs text-red-200">{logoutError}</p>}
         </div>
+
+        {user && <div className="px-3 pb-4 lg:px-4">
+          <section aria-label="Información de usuario" className="rounded-md bg-white/5 p-3 ring-1 ring-white/10">
+            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              <UserRound aria-hidden="true" className="size-3 text-slate-400" />Usuario
+            </p>
+            <p className="mt-2 text-sm font-medium text-white">{user.profile?.displayName ?? "Sin nombre"}</p>
+            <p className="mt-1 text-xs text-slate-300">Rol: {user.role ?? "Sin rol"}</p>
+            {user.profile?.curpMasked && <p className="mt-1 text-xs text-slate-300">CURP: {user.profile.curpMasked}</p>}
+            <p className="mt-1 text-xs text-slate-500">ID: {formatUserId(user.id)}</p>
+          </section>
+        </div>}
         <div className="mt-auto hidden border-t border-white/10 px-6 py-5 lg:block"><p className="text-xs text-slate-400">Sistema de gestión institucional</p><p className="mt-1 text-xs text-slate-500">Versión 1.0</p></div>
       </aside>
       <RoleContext.Provider value={role}><main className="min-w-0 flex-1">{children}</main></RoleContext.Provider>
