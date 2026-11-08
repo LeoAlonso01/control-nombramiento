@@ -11,10 +11,6 @@ import {
 } from "@/lib/files/document-validation";
 import { validateAppointmentExtraction } from "@/lib/records/contracts";
 import {
-  clearAbsoluteSessionCookie,
-  serializeAbsoluteSessionCookie,
-} from "@/lib/auth/absolute-session";
-import {
   clearPocketBaseAuthCookie,
   noStoreJson,
 } from "@/lib/auth/http";
@@ -89,7 +85,6 @@ export async function POST(request: Request) {
     () => {
       const response = noStoreJson({ error: "Se requiere una sesión activa." }, 401);
       response.headers.append("Set-Cookie", clearPocketBaseAuthCookie());
-      response.headers.append("Set-Cookie", clearAbsoluteSessionCookie());
       return response;
     },
     () => noStoreJson({ error: "No fue posible verificar la sesión." }, 503),
@@ -211,14 +206,7 @@ export async function POST(request: Request) {
   if (guarded.kind === "authenticated") {
     guarded.response.headers.append(
       "Set-Cookie",
-      exportPocketBaseAuthCookie(
-        guarded.context.pocketBase,
-        guarded.context.deadline.expiresAt,
-      ),
-    );
-    guarded.response.headers.append(
-      "Set-Cookie",
-      serializeAbsoluteSessionCookie(guarded.context.deadline),
+      exportPocketBaseAuthCookie(guarded.context.pocketBase),
     );
   }
 

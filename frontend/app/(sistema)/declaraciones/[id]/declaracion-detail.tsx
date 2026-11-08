@@ -17,30 +17,69 @@ export function DeclaracionDetail({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`/api/declaraciones/${id}`, { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) {
-          let payload: ApiError | null = null;
-          try {
-            payload = (await response.json()) as ApiError;
-          } catch {
-            payload = null;
-          }
-          throw new Error(typeof payload?.error === "string" ? payload.error : "request_failed");
-        }
-        return response.json() as Promise<DeclaracionDTO>;
-      })
-      .then(setData)
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.name === "AbortError") return;
-        setFailed(true);
-      })
-      .finally(() => setLoading(false));
+ 
+useEffect(() => {
+  const controller = new AbortController();
 
-    return () => controller.abort();
-  }, [id]);
+  setLoading(true);
+  setFailed(false);
+  setData(null);
+
+  async function cargarDetalle() {
+    try {
+      const response = await fetch(
+        `/api/declaraciones/${encodeURIComponent(id)}`,
+        {
+          cache: "no-store",
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        let payload: ApiError | null = null;
+
+        try {
+          payload = (await response.json()) as ApiError;
+        } catch {
+          payload = null;
+        }
+
+        throw new Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : `Error HTTP ${response.status}`
+        );
+      }
+
+      const resultado =
+        (await response.json()) as DeclaracionDTO;
+
+      if (!controller.signal.aborted) {
+        setData(resultado);
+      }
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return;
+
+      console.error(
+        "Error al consultar declaración:",
+        error
+      );
+
+      setFailed(true);
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
+    }
+  }
+
+  void cargarDetalle();
+
+  return () => {
+    controller.abort();
+  };
+}, [id]);
+
 
   if (loading) {
     return <DataState state="loading" message="Cargando detalle…" />;

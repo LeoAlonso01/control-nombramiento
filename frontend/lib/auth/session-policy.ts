@@ -1,12 +1,11 @@
 export type SessionPolicyRecord = {
   id: string;
   collectionName?: string;
-  activo?: unknown;
 };
 
-export type SessionPolicyResult = "authenticated" | "invalid" | "inactive";
+export type SessionPolicyResult = "authenticated" | "invalid";
 
-/** Acepta la sesión solo si el token, la colección, el ID y la actividad coinciden. */
+/** Acepta la sesión solo si el token, la colección y el ID del registro coinciden. */
 export function classifySessionState(
   tokenValid: boolean,
   record: SessionPolicyRecord | null,
@@ -16,8 +15,7 @@ export function classifySessionState(
     return "invalid";
   }
 
-  if (record.id !== expectedUserId) return "invalid";
-  if (record.activo !== true) return "inactive";
+  if (!expectedUserId || record.id !== expectedUserId) return "invalid";
   return "authenticated";
 }
 

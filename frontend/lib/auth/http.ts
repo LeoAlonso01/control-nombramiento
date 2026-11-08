@@ -6,75 +6,11 @@ import {
   POCKETBASE_AUTH_COOKIE_NAME,
 } from "@/lib/pocketbase/server";
 
-export type OriginValidation =
-  | { allowed: true }
-  | { allowed: false; reason: "forbidden" | "misconfigured" };
-
 /** Evita que respuestas con sesión o datos de usuario queden almacenadas en caché. */
 export function noStoreJson(body: unknown, status = 200): NextResponse {
   const response = NextResponse.json(body, { status });
   response.headers.set("Cache-Control", "no-store");
   return response;
-}
-
-/** Normaliza solo valores que representen un origen, no una URL con ruta o credenciales. */
-function parseOrigin(value: string): string | null {
-  try {
-    const url = new URL(value);
-
-    if (
-      (url.protocol !== "http:" && url.protocol !== "https:") ||
-      url.username ||
-      url.password ||
-      url.pathname !== "/" ||
-      url.search ||
-      url.hash
-    ) {
-      return null;
-    }
-
-    return url.origin;
-  } catch {
-    return null;
-  }
-}
-
-/** Mitiga solicitudes cross-origin en operaciones POST basadas en cookies. */
-export function validatePostOrigin(request: Request): OriginValidation {
-  const requestOrigin = request.headers.get("origin");
-
-  if (!requestOrigin || requestOrigin === "null") {
-    return { allowed: false, reason: "forbidden" };
-  }
-
-  const normalizedRequestOrigin = parseOrigin(requestOrigin);
-
-  if (!normalizedRequestOrigin || normalizedRequestOrigin !== requestOrigin) {
-    return { allowed: false, reason: "forbidden" };
-  }
-
-  const configuredOrigin = process.env.APP_ORIGIN?.trim();
-
-  if (configuredOrigin) {
-    const normalizedConfiguredOrigin = parseOrigin(configuredOrigin);
-
-    if (!normalizedConfiguredOrigin) {
-      return { allowed: false, reason: "misconfigured" };
-    }
-
-    return normalizedRequestOrigin === normalizedConfiguredOrigin
-      ? { allowed: true }
-      : { allowed: false, reason: "forbidden" };
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    return { allowed: false, reason: "misconfigured" };
-  }
-
-  // En desarrollo sin APP_ORIGIN, limita la solicitud al origen de la propia petición.
-  return normalizedRequestOrigin === new URL(request.url).origin
-    ? { allowed: true }
-    : { allowed: false, reason: "forbidden" };
 }
 
 export type LimitedJsonBody =

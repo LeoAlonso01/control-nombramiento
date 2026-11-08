@@ -10,6 +10,7 @@ import {
   isLoginSuccessful,
   LOGIN_ENDPOINT,
   loginFailureMessage,
+  normalizeCurp,
 } from "@/app/login/login-contract";
 
 type LoginResponse = {
@@ -31,10 +32,10 @@ export function LoginForm() {
     event.preventDefault();
     if (submittingRef.current) return;
 
-    const normalizedIdentity = identity.trim();
+    const normalizedIdentity = normalizeCurp(identity);
 
-    if (!normalizedIdentity || !password || normalizedIdentity.length > 255 || password.length > 1024) {
-      setErrorMessage("Ingresa tu correo o nombre de usuario y tu contraseña.");
+    if (!canSubmitCredentials(normalizedIdentity, password, false)) {
+      setErrorMessage("Ingresa tu CURP (18 caracteres) y tu contraseña.");
       return;
     }
 
@@ -78,20 +79,21 @@ export function LoginForm() {
     <form onSubmit={handleSubmit} noValidate className="space-y-5" aria-busy={isSubmitting}>
       <div className="space-y-2">
         <label htmlFor="login-identity" className="block text-sm font-medium text-slate-800">
-          Correo electrónico o nombre de usuario
+          CURP
         </label>
         <input
           id="login-identity"
           name="identity"
           type="text"
           autoComplete="username"
-          autoCapitalize="none"
+          autoCapitalize="characters"
           spellCheck={false}
-          maxLength={255}
+          maxLength={18}
+          placeholder="18 caracteres"
           required
           disabled={isSubmitting}
           value={identity}
-          onChange={(event) => setIdentity(event.target.value)}
+          onChange={(event) => setIdentity(event.target.value.toUpperCase())}
           className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#a82732] focus:ring-2 focus:ring-[#a82732]/15 disabled:bg-slate-50 sm:text-sm"
           aria-invalid={Boolean(errorMessage)}
           aria-describedby={errorMessage ? "login-error" : undefined}

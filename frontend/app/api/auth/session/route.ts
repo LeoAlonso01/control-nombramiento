@@ -4,16 +4,11 @@ import {
 } from "@/lib/auth/server";
 import { noStoreJson, clearPocketBaseAuthCookie } from "@/lib/auth/http";
 import {
-  clearAbsoluteSessionCookie,
-  serializeAbsoluteSessionCookie,
-  SessionSigningConfigurationError,
-} from "@/lib/auth/absolute-session";
-import {
   exportPocketBaseAuthCookie,
   PocketBaseConfigurationError,
 } from "@/lib/pocketbase/server";
 
-/** Renueva la sesión verificada o elimina ambas cookies cuando deja de ser válida. */
+/** Renueva la sesión verificada o elimina la cookie cuando deja de ser válida. */
 export async function GET(request: Request) {
   try {
     const context = await getVerifiedSessionContext(
@@ -23,7 +18,6 @@ export async function GET(request: Request) {
     if (!context.authenticated) {
       const response = noStoreJson({ authenticated: false });
       response.headers.append("Set-Cookie", clearPocketBaseAuthCookie());
-      response.headers.append("Set-Cookie", clearAbsoluteSessionCookie());
       return response;
     }
 
@@ -33,22 +27,11 @@ export async function GET(request: Request) {
     });
     response.headers.append(
       "Set-Cookie",
-      exportPocketBaseAuthCookie(context.pocketBase, context.deadline.expiresAt),
-    );
-    response.headers.append(
-      "Set-Cookie",
-      serializeAbsoluteSessionCookie(context.deadline),
+      exportPocketBaseAuthCookie(context.pocketBase),
     );
     return response;
   } catch (error) {
     if (error instanceof PocketBaseConfigurationError) {
-      return noStoreJson(
-        { error: "La autenticación no está configurada." },
-        500,
-      );
-    }
-
-    if (error instanceof SessionSigningConfigurationError) {
       return noStoreJson(
         { error: "La autenticación no está configurada." },
         500,

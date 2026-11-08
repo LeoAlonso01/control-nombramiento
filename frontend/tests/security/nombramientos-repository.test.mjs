@@ -56,11 +56,10 @@ test("surfaces network and non-success PocketBase errors without swallowing them
   await assert.rejects(listNombramientos(fakeClient(unauthorized), parseNombramientoQuery(new URLSearchParams()), "auditor"), unauthorized);
 });
 
-test("inactive and invalid sessions are rejected by the existing session policy", () => {
-  const deadline = { userId: "user-1", expiresAt: Date.now() + 1000 };
-  assert.equal(classifySessionState(true, { id: "user-1", collectionName: "users", activo: false }, deadline.userId), "inactive");
-  assert.equal(classifySessionState(true, { id: "other-user", collectionName: "users", activo: true }, deadline.userId), "invalid");
-  assert.equal(classifySessionState(true, { id: "user-1", collectionName: "users", activo: true }, deadline.userId), "authenticated");
+test("mismatched sessions are rejected and the activo field is not evaluated", () => {
+  assert.equal(classifySessionState(true, { id: "user-1", collectionName: "users", activo: false }, "user-1"), "authenticated");
+  assert.equal(classifySessionState(true, { id: "other-user", collectionName: "users" }, "user-1"), "invalid");
+  assert.equal(classifySessionState(true, { id: "user-1", collectionName: "users" }, "user-1"), "authenticated");
 });
 
 test("application roles are checked for read access; unknown roles are denied", () => {

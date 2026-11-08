@@ -5,7 +5,7 @@ Estado: diseño para aprobación. No se consultó ni modificó PocketBase. No se
 ## Hechos y límites
 
 - El contexto aprobado indica que las cinco reglas de `nombramientos` y `declaraciones` siguen en **Admins only**. Se mantienen así durante esta fase.
-- `getVerifiedSessionContext` renueva la sesión contra `users`, rechaza `activo !== true` y resuelve el rol desde el registro renovado. La ruta de nombramientos todavía responde 503 y no llama al repositorio.
+- `getVerifiedSessionContext` renueva la sesión contra `users` y resuelve el rol desde el registro renovado. Desde el 2026-11-07 no evalúa `activo` y la sesión depende únicamente del token de PocketBase; la cookie firmada de plazo absoluto fue retirada.
 - El cliente de `lib/pocketbase/server.ts` es por solicitud y usa la sesión del usuario. No existe en el código inspeccionado un cliente ni una credencial de servicio privilegiada.
 - La exportación local solo contiene `nombramientos` y `declaraciones`; no confirma el esquema activo ni reglas. `users`, `rol`, `activo`, CURP y `APP_ADMIN_USER_ID` no se verificaron contra la instancia.
 - La exportación muestra `documento` con `protected=false`, `datos_ocr`, `delete_at`, y campos de estado; todo esto requiere validación administrativa. `estado_proceso` exportado no incluye `rechazado`, aunque el flujo local sí lo contempla.
@@ -86,7 +86,9 @@ No se propone una regla `updateRule` amplia por rol: permitiría llamadas direct
 
 Propuesta para las cinco reglas: Admins only. No exponer listado ni vista de perfiles, creación pública, actualización propia o borrado propio. No hay endpoint de registro o administración de usuarios en la aplicación. El inicio de sesión existente continúa usando `authWithPassword` y la verificación server-side.
 
-Se puede evaluar `authRule` para impedir autenticar cuentas inactivas, pero no se incluye como regla final hasta probar su interacción con login y renovación de sesión. La validación `activo === true` en Next se conserva.
+Desde el 2026-11-07 el formulario solicita **CURP y contraseña**, y la CURP se envía como `identity`. Esto exige que el campo de sistema `username` de PocketBase contenga la CURP de cada cuenta; el campo personalizado `CURP` no participa en la autenticación.
+
+La aplicación ya no evalúa `activo` en el inicio de sesión ni en la renovación: desactivar una cuenta no revoca su acceso mientras su token siga vigente. La revocación debe hacerse en PocketBase (cambio de contraseña o de `tokenKey`, o bloqueo efectivo de la cuenta). Si se requiere bloquear el acceso desde la primera capa, puede evaluarse `authRule`, pendiente de prueba contra login y renovación.
 
 ## Archivos
 
@@ -104,7 +106,7 @@ Cambiar `protected` es una operación de esquema remota y queda pendiente de apr
 
 La resolución local ahora concede `admin` a ese ID solo si el registro renovado también tiene `rol === "admin"`. Si no coincide, el rol queda nulo y la matriz deniega el acceso. No se actualiza ninguna cuenta automáticamente.
 
-Antes de habilitar lectura, una persona autorizada debe comprobar manualmente que la cuenta correspondiente está activa y tiene `rol=admin`. No se lee ni se registra el valor de la variable en logs. La regla PocketBase consulta el rol almacenado y no conoce la excepción de entorno.
+Antes de habilitar lectura, una persona autorizada debe comprobar manualmente que la cuenta correspondiente tiene `rol=admin`. No se lee ni se registra el valor de la variable en logs. La regla PocketBase consulta el rol almacenado y no conoce la excepción de entorno.
 
 ## Auditoría propuesta
 

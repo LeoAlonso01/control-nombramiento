@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth/server";
-import { ABSOLUTE_SESSION_COOKIE_NAME } from "@/lib/auth/absolute-session";
 import { POCKETBASE_AUTH_COOKIE_NAME } from "@/lib/pocketbase/server";
 import { AppShell } from "@/app/app-shell";
 
@@ -21,13 +20,10 @@ function SessionUnavailable() {
 async function ProtectedContent({ children }: { children: ReactNode }) {
   await connection();
   const cookieStore = await cookies();
-  const authCookies = [POCKETBASE_AUTH_COOKIE_NAME, ABSOLUTE_SESSION_COOKIE_NAME]
-    .map((name) => {
-      const cookie = cookieStore.get(name);
-      return cookie ? `${name}=${cookie.value}` : null;
-    })
-    .filter((cookie): cookie is string => cookie !== null)
-    .join("; ");
+  const authCookie = cookieStore.get(POCKETBASE_AUTH_COOKIE_NAME);
+  const authCookies = authCookie
+    ? `${POCKETBASE_AUTH_COOKIE_NAME}=${authCookie.value}`
+    : null;
   let session: Awaited<ReturnType<typeof getServerSession>>;
   try {
     session = await getServerSession(authCookies || null);

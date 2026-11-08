@@ -1,17 +1,40 @@
-﻿import Link from "next/link";
+﻿
+import Link from "next/link";
+import { Suspense } from "react";
 import { NombramientoEdit } from "@/app/(sistema)/nombramientos/[id]/editar/nombramiento-edit";
 
-export default function EditarNombramientoPage({ params }: { params: { id: string } }) {
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+async function ContenidoEditarNombramiento({
+  params,
+}: PageProps) {
+  const { id } = await params;
+
   return (
     <>
       <header className="border-b border-slate-200 bg-white px-5 py-6 sm:px-8 lg:px-10">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="mb-1 text-xs font-medium text-slate-500">Módulos / Nombramientos / Editar</p>
-            <h1 className="text-2xl font-semibold tracking-tight">Editar nombramiento</h1>
-            <p className="mt-1 text-sm text-slate-600">ID: {params.id}</p>
+            <p className="mb-1 text-xs font-medium text-slate-500">
+              Módulos / Nombramientos / Editar
+            </p>
+
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Editar nombramiento
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-600">
+              ID: {id}
+            </p>
           </div>
-          <Link href={`/nombramientos/${params.id}`} className="text-sm font-medium text-slate-700 underline underline-offset-4 hover:text-slate-900">
+
+          <Link
+            href={`/nombramientos/${id}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <span aria-hidden="true">←</span>
             Volver al detalle
           </Link>
         </div>
@@ -19,9 +42,25 @@ export default function EditarNombramientoPage({ params }: { params: { id: strin
 
       <div className="mx-auto max-w-[1440px] px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
         <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200/80">
-          <NombramientoEdit id={params.id} />
+          <NombramientoEdit id={id} />
         </section>
       </div>
     </>
+  );
+}
+
+export default function EditarNombramientoPage({
+  params,
+}: PageProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-[1440px] px-5 py-6 text-sm text-slate-500">
+          Cargando formulario de edición...
+        </div>
+      }
+    >
+      <ContenidoEditarNombramiento params={params} />
+    </Suspense>
   );
 }

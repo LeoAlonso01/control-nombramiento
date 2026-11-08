@@ -35,10 +35,7 @@ export function createPocketBaseServer(
 }
 
 /** Reduce el registro de authStore a metadatos mínimos y devuelve la cookie renovada. */
-export function exportPocketBaseAuthCookie(
-  pb: PocketBase,
-  absoluteExpiresAt?: number,
-): string {
+export function exportPocketBaseAuthCookie(pb: PocketBase): string {
   const record = pb.authStore.model as RecordModel | null;
 
   if (record?.collectionName === "users") {
@@ -46,16 +43,12 @@ export function exportPocketBaseAuthCookie(
       id: record.id,
       collectionId: record.collectionId,
       collectionName: record.collectionName,
-      activo: record["activo"],
     });
   }
 
   const tokenExpirySeconds = getTokenPayload(pb.authStore.token).exp;
-  const tokenExpiresAt =
+  const expiresAt =
     typeof tokenExpirySeconds === "number" ? tokenExpirySeconds * 1000 : undefined;
-  const expiresAt = [absoluteExpiresAt, tokenExpiresAt]
-    .filter((value): value is number => typeof value === "number")
-    .reduce((earliest, value) => Math.min(earliest, value), Number.POSITIVE_INFINITY);
 
   return pb.authStore.exportToCookie(
     {
@@ -63,7 +56,7 @@ export function exportPocketBaseAuthCookie(
       secure: process.env.NODE_ENV === "production",
       sameSite: "Lax",
       path: "/",
-      ...(Number.isFinite(expiresAt) ? { expires: new Date(expiresAt) } : {}),
+      ...(expiresAt ? { expires: new Date(expiresAt) } : {}),
     },
     POCKETBASE_AUTH_COOKIE_NAME,
   );

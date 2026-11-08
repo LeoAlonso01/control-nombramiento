@@ -1,13 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  ABSOLUTE_SESSION_MAX_AGE_MS,
-  ABSOLUTE_SESSION_COOKIE_NAME,
-  createAbsoluteSessionDeadline,
-  readAbsoluteSessionDeadline,
-  serializeAbsoluteSessionCookie,
-} from "../../lib/auth/absolute-session.ts";
-import {
   classifyRefreshFailure,
   classifySessionState,
 } from "../../lib/auth/session-policy.ts";
@@ -25,8 +18,10 @@ import {
   canSubmitCredentials,
   createLoginRequest,
   isLoginSuccessful,
+  isValidCurp,
   LOGIN_ENDPOINT,
   loginFailureMessage,
+  normalizeCurp,
 } from "../../app/login/login-contract.ts";
 import {
   runAfterSessionPermission,
@@ -37,9 +32,6 @@ import {
   isLogoutSuccessful,
   LOGOUT_ENDPOINT,
 } from "../../lib/auth/logout-contract.ts";
-
-// Se usa un valor sintético exclusivo del proceso de pruebas; no es una credencial del entorno.
-process.env.SESSION_SIGNING_SECRET = "unit-test-secret-with-at-least-32-bytes";
 
 test("authorization matrix defines every role, resource, and action combination", () => {
   assert.deepEqual(Object.keys(AUTHORIZATION_POLICY).sort(), [...APP_ROLES].sort());
@@ -125,58 +117,36 @@ test("ordinary application roles cannot manage users or hard-delete records", ()
   }
 });
 
-test("login creates a signed eight-hour absolute deadline", () => {
-  const now = 1_800_000_000_000;
-  const deadline = createAbsoluteSessionDeadline("test-user", now);
-  const cookie = serializeAbsoluteSessionCookie(deadline);
-
-  assert.equal(deadline.issuedAt, now);
-  assert.equal(deadline.expiresAt, now + ABSOLUTE_SESSION_MAX_AGE_MS);
-  assert.match(cookie, new RegExp(`^${ABSOLUTE_SESSION_COOKIE_NAME}=`));
-  assert.match(cookie, /HttpOnly/);
-  assert.match(cookie, /SameSite=Lax/);
-  assert.match(cookie, /Path=\//);
-});
-
-test("renewal reads the original deadline without extending it", () => {
-  const original = createAbsoluteSessionDeadline("test-user", 1_800_000_000_000);
-  const renewed = readAbsoluteSessionDeadline(
-    `pb_auth=placeholder; ${ABSOLUTE_SESSION_COOKIE_NAME}=${encodeURIComponent(original.value)}`,
-    original.issuedAt + 60 * 60 * 1000,
-  );
-
-  assert.equal(renewed?.issuedAt, original.issuedAt);
-  assert.equal(renewed?.expiresAt, original.expiresAt);
-  assert.equal(renewed?.value, original.value);
-});
-
-test("deadline expires at eight hours", () => {
-  const original = createAbsoluteSessionDeadline("test-user", 1_800_000_000_000);
-  const expired = readAbsoluteSessionDeadline(
-    `${ABSOLUTE_SESSION_COOKIE_NAME}=${encodeURIComponent(original.value)}`,
-    original.expiresAt,
-  );
-
-  assert.equal(expired, null);
-});
-
-test("a user who becomes inactive is rejected", () => {
-  const state = classifySessionState(
-    true,
-    { id: "test-user", collectionName: "users", activo: false },
-    "test-user",
-  );
+test("a valid token for the matching user authenticates", () => {
   assert.equal(
-    state,
-    "inactive",
+    classifySessionState(
+      true,
+      { id: "test-user", collectionName: "users" },
+      "test-user",
+    ),
+    "authenticated",
   );
-  // La resolución de rol debe ocurrir después de esta validación en getVerifiedSessionContext.
-  assert.notEqual(state, "authenticated");
+});
+
+test("a token issued for another user is rejected", () => {
+  assert.equal(
+    classifySessionState(
+      true,
+      { id: "other-user", collectionName: "users" },
+      "test-user",
+    ),
+    "invalid",
+  );
+});
+
+test("the activo field no longer blocks session verification", () => {
+  const record = { id: "test-user", collectionName: "users", activo: false };
+  assert.equal(classifySessionState(true, record, "test-user"), "authenticated");
 });
 
 test("an invalid or expired token is rejected", () => {
   assert.equal(
-    classifySessionState(false, { id: "test-user", collectionName: "users", activo: true }, "test-user"),
+    classifySessionState(false, { id: "test-user", collectionName: "users" }, "test-user"),
     "invalid",
   );
   assert.equal(classifyRefreshFailure(401), "invalid");
@@ -185,19 +155,6 @@ test("an invalid or expired token is rejected", () => {
 test("PocketBase connection failures remain unavailable, not authenticated", () => {
   assert.equal(classifyRefreshFailure(null), "unavailable");
   assert.equal(classifyRefreshFailure(503), "unavailable");
-});
-
-test("a manipulated absolute-deadline cookie fails signature validation", () => {
-  const original = createAbsoluteSessionDeadline("test-user", 1_800_000_000_000);
-  const altered = `${original.value.slice(0, -1)}x`;
-
-  assert.equal(
-    readAbsoluteSessionDeadline(
-      `${ABSOLUTE_SESSION_COOKIE_NAME}=${encodeURIComponent(altered)}`,
-      original.issuedAt,
-    ),
-    null,
-  );
 });
 
 test("PocketBase URL rejects malformed values and embedded credentials", () => {
@@ -232,21 +189,30 @@ test("dashboard fails closed when session verification is unavailable", async ()
   );
 });
 
-test("login form keeps an empty submission disabled and prevents a duplicate", () => {
+test("login form requires an 18-character CURP and prevents a duplicate", () => {
   assert.equal(canSubmitCredentials("", "", false), false);
-  assert.equal(canSubmitCredentials("user@example.test", "secret", true), false);
-  assert.equal(canSubmitCredentials(" user@example.test ", "secret", false), true);
+  assert.equal(canSubmitCredentials("ABCD010101HDFRRN01", "secret", true), false);
+  assert.equal(canSubmitCredentials("ABCD010101HDFRRN01", "", false), false);
+  assert.equal(canSubmitCredentials("abcd010101hdfrrn01", "secret", false), true);
+  assert.equal(canSubmitCredentials(" curp-incompleta ", "secret", false), false);
+});
+
+test("CURP normalization uppercases and trims the captured value", () => {
+  assert.equal(normalizeCurp(" abcd010101hdfrrn01 "), "ABCD010101HDFRRN01");
+  assert.equal(isValidCurp("ABCD010101HDFRRN01"), true);
+  assert.equal(isValidCurp("ABCD010101HDFRRN0"), false);
+  assert.equal(isValidCurp("ABCD-010101-DFRRN1"), false);
 });
 
 test("login request sends only identity and password in a same-origin JSON POST", () => {
-  const request = createLoginRequest("user@example.test", "example-password");
+  const request = createLoginRequest("ABCD010101HDFRRN01", "example-password");
 
   assert.equal(LOGIN_ENDPOINT, "/api/auth/login");
   assert.equal(request.method, "POST");
   assert.equal(request.credentials, "same-origin");
   assert.equal(request.headers["Content-Type"], "application/json");
   assert.deepEqual(JSON.parse(request.body), {
-    identity: "user@example.test",
+    identity: "ABCD010101HDFRRN01",
     password: "example-password",
   });
   assert.equal(LOGIN_ENDPOINT.includes("@"), false);
@@ -258,7 +224,7 @@ test("login success requires the API success contract and credential errors stay
   assert.equal(isLoginSuccessful(false, { success: true }), false);
   assert.equal(
     loginFailureMessage(401),
-    "No fue posible iniciar sesión. Revisa tus datos e inténtalo de nuevo.",
+    "No fue posible iniciar sesión. Revisa tu CURP y tu contraseña.",
   );
 });
 
@@ -378,10 +344,10 @@ test("auditor, missing role, and invalid role are denied before extraction work"
   }
 });
 
-test("inactive extraction sessions are denied before document parsing", async () => {
+test("invalid extraction sessions are denied before document parsing", async () => {
   let fileReads = 0;
   const result = await runAfterSessionPermission(
-    async () => ({ authenticated: false, reason: "inactive" }),
+    async () => ({ authenticated: false, reason: "invalid" }),
     () => "unauthorized",
     () => "unavailable",
     () => "forbidden",

@@ -1,10 +1,6 @@
 import { getVerifiedSessionContext } from "@/lib/auth/server";
 import { runAfterSessionPermission } from "@/lib/auth/extraction-gate";
 import {
-  clearAbsoluteSessionCookie,
-  serializeAbsoluteSessionCookie,
-} from "@/lib/auth/absolute-session";
-import {
   clearPocketBaseAuthCookie,
   noStoreJson,
 } from "@/lib/auth/http";
@@ -21,7 +17,6 @@ export async function GET(request: Request) {
     () => {
       const response = noStoreJson({ error: "Se requiere una sesión activa." }, 401);
       response.headers.append("Set-Cookie", clearPocketBaseAuthCookie());
-      response.headers.append("Set-Cookie", clearAbsoluteSessionCookie());
       return response;
     },
     () => noStoreJson({ error: "El servicio de autenticación no está disponible." }, 503),
@@ -40,14 +35,7 @@ export async function GET(request: Request) {
     try {
       guarded.response.headers.append(
         "Set-Cookie",
-        exportPocketBaseAuthCookie(
-          guarded.context.pocketBase,
-          guarded.context.deadline.expiresAt,
-        ),
-      );
-      guarded.response.headers.append(
-        "Set-Cookie",
-        serializeAbsoluteSessionCookie(guarded.context.deadline),
+        exportPocketBaseAuthCookie(guarded.context.pocketBase),
       );
     } catch (error) {
       if (error instanceof PocketBaseConfigurationError) {

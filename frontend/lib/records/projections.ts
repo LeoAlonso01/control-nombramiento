@@ -17,7 +17,7 @@ type NombramientoIdentity = {
   estado_proceso: string | null;
 };
 
-export type NombramientoAuditorDTO = NombramientoIdentity & { role: "auditor" };
+export type NombramientoAuditorDTO = NombramientoIdentity & { role: "auditor" | "admin" };
 export type NombramientoCapturistaDTO = NombramientoIdentity & {
   role: "capturista";
   observaciones: string | null;
@@ -47,7 +47,7 @@ type DeclaracionIdentity = {
   estado_proceso: string | null;
 };
 
-export type DeclaracionAuditorDTO = DeclaracionIdentity & { role: "auditor" };
+export type DeclaracionAuditorDTO = DeclaracionIdentity & { role: "auditor" | "admin" };
 export type DeclaracionCapturistaDTO = DeclaracionIdentity & {
   role: "capturista";
   curp_declarante: string | null;
@@ -93,7 +93,7 @@ export function projectNombramiento(
     estado_proceso: text(source, "estado_proceso"),
   };
 
-  if (role === "auditor") return { role, ...identity };
+  if (role === "auditor" || role === "admin") return { role, ...identity };
   const sensitive = { observaciones: text(source, "observaciones"), datos_ocr: json(source, "datos_ocr") };
   return { role, ...identity, ...sensitive };
 }

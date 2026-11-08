@@ -1,12 +1,8 @@
 import "server-only";
 
-import { ClientResponseError, type RecordModel } from "pocketbase";
+import { ClientResponseError, getTokenPayload, type RecordModel } from "pocketbase";
 import type PocketBase from "pocketbase";
 import { createPocketBaseServer } from "@/lib/pocketbase/server";
-import {
-  readAbsoluteSessionDeadline,
-  type AbsoluteSessionDeadline,
-} from "@/lib/auth/absolute-session";
 import {
   classifyRefreshFailure,
   classifySessionState,
@@ -14,7 +10,6 @@ import {
 import { resolveAppRole, type AppRole } from "@/lib/auth/authorization";
 
 type PocketBaseUserRecord = RecordModel & {
-  activo?: unknown;
   rol?: unknown;
   CURP?: unknown;
   nombre?: unknown;
@@ -39,7 +34,7 @@ export type SessionResult =
   | { authenticated: false }
   | AuthenticatedSession;
 
-export type UnauthenticatedReason = "absent" | "invalid" | "expired" | "inactive";
+export type UnauthenticatedReason = "absent" | "invalid";
 
 export type VerifiedSessionContext =
   | { authenticated: false; reason: UnauthenticatedReason }
@@ -47,7 +42,6 @@ export type VerifiedSessionContext =
       authenticated: true;
       session: AuthenticatedSession;
       pocketBase: PocketBase;
-      deadline: AbsoluteSessionDeadline;
     };
 
 export type AppPermission = "app:admin";
@@ -86,21 +80,15 @@ function maskCurp(value: string | null): string | null {
 }
 
 /**
- * Verifica cookies y token contra PocketBase, comprueba identidad y actividad,
- * y resuelve el rol desde el registro renovado. Devuelve el cliente renovado
- * para que el handler pueda emitir las cookies actualizadas.
+ * Verifica la cookie y el token contra PocketBase, comprueba la identidad y
+ * resuelve el rol desde el registro renovado. Devuelve el cliente renovado
+ * para que el handler pueda emitir la cookie actualizada.
  */
 export async function getVerifiedSessionContext(
   cookieHeader?: string | null,
 ): Promise<VerifiedSessionContext> {
   if (!cookieHeader?.trim()) {
     return { authenticated: false, reason: "absent" };
-  }
-
-  const deadline = readAbsoluteSessionDeadline(cookieHeader);
-
-  if (!deadline) {
-    return { authenticated: false, reason: "expired" };
   }
 
   const pb = createPocketBaseServer(cookieHeader);
@@ -129,17 +117,19 @@ export async function getVerifiedSessionContext(
     throw new SessionVerificationError();
   }
 
-  const sessionState = classifySessionState(true, record, deadline.userId);
+  const tokenUserId = getTokenPayload(pb.authStore.token)["id"];
+  const sessionState = classifySessionState(
+    true,
+    record,
+    typeof tokenUserId === "string" ? tokenUserId : "",
+  );
 
   if (sessionState !== "authenticated") {
     pb.authStore.clear();
-    return {
-      authenticated: false,
-      reason: sessionState === "inactive" ? "inactive" : "invalid",
-    };
+    return { authenticated: false, reason: "invalid" };
   }
 
-  // El rol se toma únicamente del registro renovado, tras validar identidad y activo.
+  // El rol se toma únicamente del registro renovado, tras validar la identidad.
   const configuredAdminId = process.env.APP_ADMIN_USER_ID;
   const role = resolveAppRole(record.id, configuredAdminId, record.rol);
 
@@ -148,7 +138,6 @@ export async function getVerifiedSessionContext(
     id: record.id,
     collectionId: record.collectionId,
     collectionName: record.collectionName,
-    activo: record.activo,
   });
 
   const session: AuthenticatedSession = {
@@ -164,7 +153,7 @@ export async function getVerifiedSessionContext(
     },
   };
 
-  return { authenticated: true, session, pocketBase: pb, deadline };
+  return { authenticated: true, session, pocketBase: pb };
 }
 
 /** Verifica la sesión y expone únicamente los datos de usuario necesarios para la aplicación. */
