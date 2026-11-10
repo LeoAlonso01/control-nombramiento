@@ -125,7 +125,7 @@ useEffect(() => {
           <dd className="mt-1 text-sm text-slate-900">{data.fecha_recepcion ?? "—"}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha de emisión</dt>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha de inicio</dt>
           <dd className="mt-1 text-sm text-slate-900">{data.fecha_nombramiento ?? "—"}</dd>
         </div>
         <div>

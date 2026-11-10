@@ -1,0 +1,84 @@
+<div id="reportes-propuesta" lang="es">
+  <style>
+    #reportes-propuesta { --rp-bg:light-dark(#f5f6f8,#181b21); --rp-panel:light-dark(#fff,#242932); --rp-text:light-dark(#17202f,#eff2f7); --rp-muted:light-dark(#526073,#b7c0ce); --rp-line:light-dark(#dce1e8,#404856); --rp-red:light-dark(#a82732,#ff8993); font:14px/1.5 system-ui,sans-serif; color:var(--rp-text); background:var(--rp-bg); padding:24px; border-radius:12px; }
+    #reportes-propuesta * { box-sizing:border-box; }
+    #reportes-propuesta h2 {font-size:24px;margin:0;}
+    #reportes-propuesta h3 {font-size:15px;margin:0 0 12px;font-weight:600;}
+    #reportes-propuesta p {margin:4px 0;}
+    #reportes-propuesta .rp-muted {color:var(--rp-muted);}
+    #reportes-propuesta .rp-top {border-bottom:1px solid var(--rp-line);padding-bottom:16px;margin-bottom:20px;}
+    #reportes-propuesta .rp-kicker {color:var(--rp-red);font-weight:600;}
+    #reportes-propuesta .rp-panel {background:var(--rp-panel);border:1px solid var(--rp-line);border-radius:10px;padding:18px;min-width:0;}
+    #reportes-propuesta .rp-space {margin-top:18px;}
+    #reportes-propuesta .rp-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+    #reportes-propuesta .rp-two {display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
+    #reportes-propuesta .rp-value {font-size:26px;font-weight:600;}
+    #reportes-propuesta .rp-filters {display:flex;gap:14px;flex-wrap:wrap;align-items:end;}
+    #reportes-propuesta label {display:grid;gap:6px;flex:1;min-width:140px;}
+    #reportes-propuesta input,#reportes-propuesta select,#reportes-propuesta button {font:inherit;color:var(--rp-text);background:var(--rp-panel);border:1px solid var(--rp-line);border-radius:6px;padding:9px 12px;max-width:100%;}
+    #reportes-propuesta button:disabled {color:var(--rp-muted);cursor:not-allowed;}
+    #reportes-propuesta .rp-placeholder {display:grid;place-content:center;min-height:145px;text-align:center;border-bottom:1px solid var(--rp-line);color:var(--rp-muted);gap:6px;}
+    #reportes-propuesta .rp-row {display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--rp-line);}
+    #reportes-propuesta .rp-actions {display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+    #reportes-propuesta details {margin-top:10px;}
+    #reportes-propuesta summary {padding:6px 0;}
+    @media(max-width:700px) {#reportes-propuesta .rp-grid {grid-template-columns:repeat(2,minmax(0,1fr));} #reportes-propuesta .rp-two {grid-template-columns:1fr;} #reportes-propuesta {padding:14px;}}
+    @media(max-width:380px) {#reportes-propuesta .rp-grid {grid-template-columns:1fr;}}
+  </style>
+  <header class="rp-top">
+    <p class="rp-kicker">CONTROL DE NOMBRAMIENTOS</p>
+    <h2>Reportes</h2>
+    <p class="rp-muted">Propuesta de distribución · sin conexión a la base de datos</p>
+  </header>
+  <section class="rp-panel" aria-label="Filtros propuestos">
+    <h3>Periodo de recepción</h3>
+    <div class="rp-filters">
+      <label>Desde<input type="date" disabled aria-label="Fecha inicial pendiente de integración"></label>
+      <label>Hasta<input type="date" disabled aria-label="Fecha final pendiente de integración"></label>
+      <label>Expedientes<select disabled><option>Nombramientos y declaraciones</option></select></label>
+      <button disabled>Consultar</button>
+    </div>
+    <p class="rp-muted rp-space">Criterio de fecha por validar · Estado actual de los expedientes del periodo</p>
+  </section>
+  <section class="rp-space rp-panel" aria-labelledby="rp-insights">
+    <h3 id="rp-insights">1. Hallazgos importantes</h3>
+    <div class="rp-row"><span>Variación frente al periodo anterior de igual duración</span><span>—</span></div>
+    <div class="rp-row"><span>Estado predominante y proporción de expedientes</span><span>—</span></div>
+    <div class="rp-row"><span>Registros con error que requieren atención</span><span>—</span></div>
+    <p class="rp-muted">Se calcularán a partir de conteos verificables.</p>
+  </section>
+  <section class="rp-space" aria-labelledby="rp-kpis">
+    <h3 id="rp-kpis">2. Indicadores clave</h3>
+    <div class="rp-grid">
+      <article class="rp-panel"><p class="rp-muted">Total de expedientes</p><p class="rp-value">—</p></article>
+      <article class="rp-panel"><p class="rp-muted">Nombramientos</p><p class="rp-value">—</p></article>
+      <article class="rp-panel"><p class="rp-muted">Declaraciones</p><p class="rp-value">—</p></article>
+      <article class="rp-panel"><p class="rp-muted">Porcentaje confirmado</p><p class="rp-value">—</p></article>
+    </div>
+  </section>
+  <div class="rp-two rp-space">
+    <section class="rp-panel" aria-labelledby="rp-activity">
+      <h3 id="rp-activity">3. Actividad del periodo</h3>
+      <div class="rp-placeholder" role="img" aria-label="Espacio propuesto para gráfica de documentos por fecha de recepción; no hay datos consultados">
+        <i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>
+        <span>Documentos por fecha de recepción</span>
+        <span>Nombramientos · Declaraciones</span>
+      </div>
+      <details><summary>Definición del análisis</summary><p>Conteos diarios, semanales o mensuales. No representa confirmaciones ni cambios de estado históricos.</p></details>
+    </section>
+    <section class="rp-panel" aria-labelledby="rp-distribution">
+      <h3 id="rp-distribution">4. Distribución por tipo y estado</h3>
+      <div class="rp-row"><span>Nombramientos / Declaraciones</span><span>—</span></div>
+      <div class="rp-row"><span>Tipos de declaración</span><span>—</span></div>
+      <div class="rp-row"><span>Estados actuales</span><span>—</span></div>
+      <details><summary>Alcance de la distribución</summary><p>Los tipos de declaración corresponden solo a declaraciones. El catálogo de estados se validará antes de calcular porcentajes.</p></details>
+    </section>
+  </div>
+  <section class="rp-panel rp-space" aria-labelledby="rp-exports">
+    <h3 id="rp-exports">5. Generación de reportes</h3>
+    <p>Excel: resumen y detalle permitido · PDF: informe ejecutivo</p>
+    <div class="rp-actions"><button disabled>Descargar Excel</button><button disabled>Descargar PDF</button></div>
+    <p class="rp-muted">Disponibles al integrar datos y permisos. Compartirán los filtros y el corte del reporte.</p>
+  </section>
+  <footer class="rp-space rp-muted">— = pendiente de consulta, no equivale a cero · Sin cifras ni datos personales de producción</footer>
+</div>

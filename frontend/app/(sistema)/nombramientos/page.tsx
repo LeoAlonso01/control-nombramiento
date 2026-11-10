@@ -15,7 +15,7 @@ export default function NombramientosPage() {
           <div className="border-b border-slate-100 px-5 py-5 sm:px-6"><h2 id="appointments-title" className="text-base font-semibold">Expedientes</h2><p className="mt-1 text-sm text-slate-500">Consulta paginada de los nombramientos disponibles.</p></div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th scope="col" className="px-5 py-3">Número</th><th scope="col" className="px-5 py-3">Funcionario</th><th scope="col" className="px-5 py-3">Cargo</th><th scope="col" className="px-5 py-3">Fecha de emisión</th><th scope="col" className="px-5 py-3">Fecha de inicio</th><th scope="col" className="px-5 py-3">Estado</th><th scope="col" className="px-5 py-3 text-right">Acciones</th></tr></thead>
+              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th scope="col" className="px-5 py-3">Número</th><th scope="col" className="px-5 py-3">Funcionario</th><th scope="col" className="px-5 py-3">Cargo</th><th scope="col" className="px-5 py-3">Fecha de recepción</th><th scope="col" className="px-5 py-3">Fecha de inicio</th><th scope="col" className="px-5 py-3">Estado</th><th scope="col" className="px-5 py-3 text-right">Acciones</th></tr></thead>
               <NombramientosTable />
             </table>
           </div>

@@ -14,9 +14,10 @@ import {
   type AppointmentEditableFields,
 } from "@/lib/records/contracts";
 
-type AppointmentFields = AppointmentEditableFields;
+type AppointmentFields = AppointmentEditableFields & { fecha_recepcion: string };
 
 const emptyFields: AppointmentFields = {
+  fecha_recepcion: "",
   numero_nombramiento: "", fecha_emision: "", lugar_emision: "", nombre_funcionario: "",
   cargo: "", departamento: "", dependencia: "", fecha_inicio: "",
   tipo_nombramiento: "", observaciones: "",
@@ -25,7 +26,7 @@ const emptyFields: AppointmentFields = {
 // Orden y etiquetas compartidos por la ediciÃƒÂ³n, el resumen y el conteo de campos vacÃƒÂ­os.
 const fields: { key: keyof AppointmentFields; label: string; type?: "date" }[] = [
   { key: "numero_nombramiento", label: "NÃƒÂºmero de nombramiento" },
-  { key: "fecha_emision", label: "Fecha de emisiÃƒÂ³n", type: "date" },
+  { key: "fecha_recepcion", label: "Fecha de recepción", type: "date" },
   { key: "lugar_emision", label: "Lugar de emisiÃƒÂ³n" },
   { key: "nombre_funcionario", label: "Nombre completo" },
   { key: "cargo", label: "Cargo" },
@@ -158,7 +159,8 @@ export function CapturaNombramiento({ onClose }: Props) {
       if (!extraction) {
         throw new Error("La respuesta del servicio no tiene el formato esperado.");
       }
-      setFieldsValue(toAppointmentEditableFields(extraction));
+      // La emisión extraída no acredita recepción; esta fecha se captura expresamente.
+      setFieldsValue({ ...toAppointmentEditableFields(extraction), fecha_recepcion: "" });
       setStage("review");
     } catch (cause) {
       setError(cause instanceof TypeError ? "No se pudo conectar con el servicio. Revisa tu conexiÃƒÂ³n e intÃƒÂ©ntalo de nuevo." : cause instanceof Error ? cause.message : "OcurriÃƒÂ³ un error al procesar el documento.");
@@ -199,7 +201,7 @@ export function CapturaNombramiento({ onClose }: Props) {
     const cargoValue = fieldsValue.cargo.trim();
     if (cargoValue) form.append("cargo", cargoValue);
 
-    const fechaRecepcion = fieldsValue.fecha_emision.trim();
+    const fechaRecepcion = fieldsValue.fecha_recepcion.trim();
     if (fechaRecepcion) form.append("fecha_recepcion", fechaRecepcion);
 
     const fechaNombramiento = fieldsValue.fecha_inicio.trim();

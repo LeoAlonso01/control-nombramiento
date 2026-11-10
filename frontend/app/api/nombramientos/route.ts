@@ -149,7 +149,7 @@ export async function POST(request: Request) {
     const cargo = normalizeText(readText(form, "cargo"), 200);
 
     // Mapeo UI -> PocketBase:
-    // - fecha_emision (UI) -> fecha_recepcion (PB)
+    // - fecha_recepcion (UI) -> fecha_recepcion (PB); no usar emisión como recepción.
     // - fecha_inicio (UI) -> fecha_nombramiento (PB)
     const fecha_recepcion = readOptionalIsoDate(form, "fecha_recepcion");
     const fecha_nombramiento = readOptionalIsoDate(form, "fecha_nombramiento");
